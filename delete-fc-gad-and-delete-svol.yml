@@ -1,0 +1,169 @@
+---
+#########################################################################################################
+# Example :  Delete FC based Global Active Device Pair (GAD) and delete SVOL Playbook
+#########################################################################################################
+- name: GAD Facts
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+    
+    gad_copy_group_name: "cp_group_2230"      # Existing FC based Global Active Device Pair (GAD) copy group name
+    primary_volume_id: "2230"                 # GAD Pair primary volume ID
+
+  tasks:
+    #########################################################################################################
+    # Task 1 : Get all GAD pairs by copy group name 
+    #########################################################################################################
+    - name: Get all GAD pairs by copy group name {{ gad_copy_group_name }} and PVOL ID {{ primary_volume_id }}
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        connection_info: "{{ connection_info }}"
+        spec:
+          copy_group_name: "{{ gad_copy_group_name }}"
+          primary_volume_id: "{{ primary_volume_id }}"
+
+      register: gad_pairs
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: gad_pairs
+
+    - name: Validate if the GAD pair exists
+      assert:
+        that:
+          - gad_pairs.ansible_facts.gad_pair | length > 0
+        fail_msg: "The GAD pair does not exist! The task cannot proceed."
+        success_msg: "The GAD pair exists. Proceeding with the tasks."
+
+    #########################################################################################################
+    # Task 2 : Delete GAD pair with copy group name 
+    #########################################################################################################
+    - name: Delete GAD pair with copy group name {{ gad_copy_group_name }} and PVOL ID {{ primary_volume_id }}
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+
+        state: "absent"
+        spec:
+          copy_group_name: "{{ gad_pairs.ansible_facts.gad_pair[0].copy_group_name }}"
+          primary_volume_id: "{{ primary_volume_id }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    #########################################################################################################
+    # Task 3 : Get detailed info for SVOL 
+    #########################################################################################################
+    - name: Get SVOL detailed information with ID {{ gad_pairs.ansible_facts.gad_pair[0].secondary_volume_id }}
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ secondary_connection_info }}"
+        spec:
+          ldev_id: "{{ gad_pairs.ansible_facts.gad_pair[0].secondary_volume_id }}"
+          is_detailed: true
+      register: svol_details
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: svol_details
+    
+    - name: Register SVOL details
+      set_fact:
+        output_vars:
+          svol_ldev_id: "{{ svol_details.ansible_facts.volumes | map(attribute='ldev_id') | list }}"
+
+    #########################################################################################################
+    # Task 4 : Unpresent ldev  from hostgroup/s
+    #########################################################################################################
+    - name: Unpresent ldev {{ output_vars.svol_ldev_id[0] | int }} from hostgroup/s
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ secondary_connection_info }}"
+        state: "present"
+        spec:
+          state: "unpresent_ldev"
+          name: "{{ item.name }}"
+          port: "{{ item.port_id}}"
+          ldevs: "{{ output_vars.svol_ldev_id }}"
+      loop: "{{ svol_details.ansible_facts.volumes | map(attribute='hostgroups')| list | flatten(1) }}"    
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    #########################################################################################################
+    # Task 5 : Unset virtual ldev from the volume
+    #########################################################################################################
+    - name: Unmap virtual ldev id from ldev {{ output_vars.svol_ldev_id[0] | int }}
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ secondary_connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ output_vars.svol_ldev_id[0] | int }}" 
+          vldev_id: -1
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    #########################################################################################################
+    # Task 6 : Remove ldev from an existing Resource Group by ID
+    #########################################################################################################
+    - name: Remove ldev {{ output_vars.svol_ldev_id[0] | int }} from Resource Group ID {{ svol_details.ansible_facts.volumes[0].resource_group_id }}
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ secondary_connection_info }}"
+        spec:
+          state: "remove_resource"
+          id: "{{ svol_details.ansible_facts.volumes[0].resource_group_id }}"
+          ldevs: "{{ output_vars.svol_ldev_id[0] | int }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    #########################################################################################################
+    # Task 7 : Update volume with virtual ldev
+    #########################################################################################################
+    - name: Map virtual ldev {{ output_vars.svol_ldev_id[0] | int  }} to physical ldev {{ output_vars.svol_ldev_id[0] | int  }}
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ secondary_connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ output_vars.svol_ldev_id[0] | int  }}"
+          vldev_id: "{{ output_vars.svol_ldev_id[0] | int  }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result     
+
+    #########################################################################################################
+    # Task 8 : Delete ldev 
+    #########################################################################################################
+    - name: Delete ldev with ldev id {{ output_vars.svol_ldev_id[0] | int }}
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ secondary_connection_info }}"
+        state: "absent"
+        spec:
+          ldev_id: "{{ output_vars.svol_ldev_id[0] | int  }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+

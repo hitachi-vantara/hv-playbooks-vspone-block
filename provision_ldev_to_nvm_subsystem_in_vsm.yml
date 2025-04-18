@@ -1,0 +1,220 @@
+#########################################################################################################
+# Example : Provision ldev to NVM Subsystem in VSM resource group Playbook
+#########################################################################################################
+- name: Provision ldev to NVM Subsystem in VSM resource group
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    
+    #########################################################################################################
+    # Variables for provision_ldev_to_nvm_subsystem_in_vsm playbook
+    #########################################################################################################
+
+    nvm_subsystem_id_1: 900                             # Free NVM Subsystem ID  
+    nvm_subsystem_name_1: nvm_hv_engg_04                # New NVM Subsystem name
+    resource_group_id_1: 26                             # Existing VSM resource group ID that supports the FC-NVMe function
+    nvm_subsystem_port_1: ["CL2-D"]                     # NVMe port for creating NVM Subsystem
+    nvm_subsystem_host_mode_1: VMWARE_EX                # Host Mode for the new NVM Subsystem
+    nvm_subsystem_host_nqns_1:                          # Host NQNs to be added in the new NVM Subsystem
+      - nqn: nqn.2014-08.com.vmware:nvme:esxi-37-150
+        nickname: test_nvm_esxi_37_150
+      - nqn: nqn.2014-08.com.vmware:nvme:esxi-37-151
+        nickname: test_nvm_esxi_37_151
+    ldev_pool_id_1 : 1                                   # HDP Pool ID to create new volume
+    ldev_size_1 : 16GB                                   # Size of the new volume to be created
+
+  tasks:
+    #########################################################################################################
+    # Task 1 : Move free NVM Subsystem ID to existing resource group with ID 
+    #########################################################################################################
+    - name: Task 1 - Move free NVM Subsystem ID {{ nvm_subsystem_id_1 }} to existing resource group with ID {{ resource_group_id_1 }}
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        spec:
+          state: "add_resource"
+          id: "{{ resource_group_id_1 }}"
+          nvm_subsystem_ids: "{{ nvm_subsystem_id_1 }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    #########################################################################################################
+    # Task 2 : Create an NVM Subsystem with NVM Subsystem ID in Task 1
+    #########################################################################################################
+    - name: Task 2 - Create an NVM Subsystem {{ nvm_subsystem_name_1 }} with NVM Subsystem ID {{ nvm_subsystem_id_1 }}
+      hitachivantara.vspone_block.vsp.hv_nvm_subsystems:
+        connection_info: "{{ connection_info }}"
+        spec:
+          id: "{{ nvm_subsystem_id_1 }}"
+          ports: "{{ nvm_subsystem_port_1 }}"
+          name: "{{ nvm_subsystem_name_1 }}"
+          host_mode: "{{ nvm_subsystem_host_mode_1 }}"
+          host_nqns: "{{ nvm_subsystem_host_nqns_1 }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    #########################################################################################################
+    # Task 3 : Create new volume and Unmap virtual ldev from the ldev
+    #########################################################################################################
+    - name: Task 3 - Create new volume and Unmap virtual ldev from the ldev
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          pool_id: "{{ ldev_pool_id_1 }}"
+          size: "{{ ldev_size_1 }}"
+          vldev_id: -1
+      register: result_create_ldev
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_create_ldev
+
+    - block:
+        #########################################################################################################
+        # Task 4 : Add ldev created in task 3 to VSM
+        #########################################################################################################
+        - name: Task 4 - Add ldev with ldev id {{ result_create_ldev['volume']['ldev_id'] | int }} to an existing Resource Group ID {{ resource_group_id_1 }}
+          hitachivantara.vspone_block.vsp.hv_resource_group:
+            connection_info: "{{ connection_info }}"
+            spec:
+              state: "add_resource"
+              id: "{{ resource_group_id_1 }}"
+              ldevs: ["{{ result_create_ldev['volume']['ldev_id'] | int }}"]
+          register: result_add_ldev_vsm
+
+        - name: Debug the result variable
+          ansible.builtin.debug:
+            var: result_add_ldev_vsm
+
+        #########################################################################################################
+        # Task 5 : Update volume with virtual ldev
+        #########################################################################################################
+        - name: Task 5 - Map virtual ldev id {{ result_create_ldev['volume']['ldev_id'] | int }} to given ldev {{ result_create_ldev['volume']['ldev_id'] | int }}
+          hitachivantara.vspone_block.vsp.hv_ldev:
+            connection_info: "{{ connection_info }}"
+            state: "present"
+            spec:
+              ldev_id: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+              vldev_id: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+          register: result_map_vldev
+
+        - name: Debug the result variable
+          ansible.builtin.debug:
+            var: result_map_vldev
+
+        #########################################################################################################
+        # Task 6 : Present existing volume to NVM System
+        #########################################################################################################
+        - name: Task 6 - Present existing volume {{ result_create_ldev['volume']['ldev_id'] | int }} to NVM System {{ nvm_subsystem_name_1 }}
+          hitachivantara.vspone_block.vsp.hv_ldev:
+            connection_info: "{{ connection_info }}"
+            state: "present"
+            spec:
+              ldev_id: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+              state: "add_host_nqn"
+              nvm_subsystem_name: "{{ nvm_subsystem_name_1 }}"
+              host_nqns: "{{ nvm_subsystem_host_nqns_1 | map(attribute='nqn') | list }}"
+          register: result_present_nvm
+
+        - name: Debug the result variable
+          ansible.builtin.debug:
+            var: result_present_nvm
+
+      rescue:
+        #########################################################################################################
+        # Task 1 : Unset virtual ldev from the volume
+        #########################################################################################################
+        - name: Cleanup Task - Unmap virtual ldev id {{ result_create_ldev['volume']['ldev_id'] | int }} from ldev {{ result_create_ldev['volume']['ldev_id'] | int }}
+          hitachivantara.vspone_block.vsp.hv_ldev:
+            connection_info: "{{ connection_info }}"
+            state: "present"
+            spec:
+              ldev_id: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+              vldev_id: -1
+          ignore_errors: yes
+          register: result
+
+        - name: Debug the result variable
+          ansible.builtin.debug:
+            var: result
+
+        #########################################################################################################
+        # Task 2 : Remove ldev from an existing Resource Group by ID
+        #########################################################################################################
+        - name: Cleanup Task - Remove ldev {{ result_create_ldev['volume']['ldev_id'] | int }} from Resource Group ID {{ resource_group_id_1 }}
+          hitachivantara.vspone_block.vsp.hv_resource_group:
+            connection_info: "{{ connection_info }}"
+            spec:
+              state: "remove_resource"
+              id: "{{ resource_group_id_1 }}"
+              ldevs: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+          ignore_errors: yes
+          register: result
+
+        - name: Debug the result variable
+          ansible.builtin.debug:
+            var: result
+
+        #########################################################################################################
+        # Task 3 : Update volume with virtual ldev
+        #########################################################################################################
+        - name: Cleanup Task - Map virtual ldev {{ result_create_ldev['volume']['ldev_id'] | int }} to physical ldev {{ result_create_ldev['volume']['ldev_id'] | int }}
+          hitachivantara.vspone_block.vsp.hv_ldev:
+            connection_info: "{{ connection_info }}"
+            state: "present"
+            spec:
+              ldev_id: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+              vldev_id: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+          ignore_errors: yes
+          register: result
+
+        - name: Debug the result variable
+          ansible.builtin.debug:
+            var: result     
+
+        #########################################################################################################
+        # Task 4 : Force delete ldev 
+        #########################################################################################################
+        - name: Cleanup Task - Force delete ldev with ldev id {{ result_create_ldev['volume']['ldev_id'] | int }}
+          hitachivantara.vspone_block.vsp.hv_ldev:
+            connection_info: "{{ connection_info }}"
+            state: "absent"
+            spec:
+              ldev_id: "{{ result_create_ldev['volume']['ldev_id'] | int }}"
+              force: true
+          ignore_errors: yes
+          register: result
+
+        - name: Debug the result variable
+          ansible.builtin.debug:
+            var: result
+          
+    #########################################################################################################
+    # Task 7 : Get NVM Subsystem by name
+    #########################################################################################################
+    - name: Task 7 - Get NVM Subsystem "{{ nvm_subsystem_name_1 }}" details
+      hitachivantara.vspone_block.vsp.hv_nvm_subsystems_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          name: "{{ nvm_subsystem_name_1 }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
