@@ -1,0 +1,47 @@
+---
+- name: Storage Port Module
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    #Change storage port security settings using port id
+    ####################################################################
+    - name: Change storage port security settings using port id
+      hitachivantara.vspone_block.vsp.hv_storage_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port: "CL5-C"
+          enable_port_security: true
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    ####################################################################
+    #Change storage port mode settings using port id
+    ####################################################################
+    - name: Change storage port mode settings using port id
+      hitachivantara.vspone_block.vsp.hv_storage_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port: "CL5-C"
+          port_mode: "FC-NVMe"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+
