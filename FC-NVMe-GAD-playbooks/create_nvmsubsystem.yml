@@ -1,0 +1,41 @@
+---
+- name: NVM Subsystems Management
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    #Create an NVM Subsystem with a specific ID
+    ####################################################################
+    - name: Create an NVM Subsystem
+      hitachivantara.vspone_block.vsp.hv_nvm_subsystems:
+        connection_info: "{{ connection_info }}"
+        spec:
+          id: 20
+          ports: ["CL5-C"]
+          host_mode: "VMWARE_EX"
+          enable_namespace_security: true
+          host_nqns:
+            - nqn: "nqn.2014-08.com.vmware:nvme:gad-nvme-host"
+              nickname: "test_nvm_ansible"
+          namespaces:
+            - ldev_id: 800
+              nickname: "namespace_800"
+              paths:
+                - "nqn.2014-08.com.vmware:nvme:gad-nvme-host"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
