@@ -1,0 +1,51 @@
+---
+- name: Resource Group Management
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ######################################################################################
+    #Create a Resource Group with virtual storage serial number of VSM
+    ######################################################################################
+    - name: Create a Resource Group with virtual storage serial number of VSM
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        spec:
+          name: "rd_rg_01"
+          virtual_storage_serial: 810005
+          virtual_storage_model: "VSP_ONE_B24"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    - name: Pause for 120 seconds
+      pause:
+        seconds: 120
+    ######################################################################################
+    # Add the following resources to an existing Resource Group by name
+    # Resources :nvm subsystem id
+    ######################################################################################
+    - name: Add the above resources to an existing Resource Group by name
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        spec:
+          state: "add_resource"
+          name: "rd_rg_01"
+          nvm_subsystem_ids: [21]
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
