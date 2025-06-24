@@ -1,0 +1,88 @@
+---
+- name: Logical Device Facts
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+
+    email_to: "XXXXXXX"
+    email_from: "XXXXXX"
+    smtp_host: "smtp.XXXXX.com"
+    smtp_port: 587
+    smtp_username: "XXXXXXX"
+    smtp_password: "XXXXXXX" 
+
+  tasks:
+    - name: Retrieve LDEV facts
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+      register: ldev_facts_result
+
+    - name: Set result variable
+      ansible.builtin.set_fact:
+        result: "{{ ldev_facts_result }}"
+
+    - name: Initialize list for high usage LDEVs
+      ansible.builtin.set_fact:
+        high_usage_ldevs: []
+
+    - name: Check used percentage and collect LDEVs above 80% usage
+      ansible.builtin.set_fact:
+        high_usage_ldevs: "{{ high_usage_ldevs + [item] }}"
+      loop: "{{ result.ansible_facts.volumes }}"
+      when:
+        - item.name is defined
+        - item.name | string | length > 0
+        - item.total_capacity is defined
+        - item.total_capacity | string | length > 0
+        - item.used_capacity is defined
+        - item.used_capacity | string | length > 0
+        - (item.used_capacity_in_mb | float / item.total_capacity_in_mb | float * 100) > 80
+      loop_control:
+        label: "{{ item.ldev_id }}"
+
+    - name: Debug LDEVs with more than 80% usage
+      ansible.builtin.debug:
+        var: high_usage_ldevs
+
+    - name: Expand LDEV volumes by 10%
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ item.ldev_id }}"
+          size: "{{ ((item.total_capacity_in_mb | float * 10.01) | int) | string }}MB"
+      loop: "{{ high_usage_ldevs }}"
+      loop_control:
+        label: "{{ item.ldev_id }}"
+
+    - name: Send Gmail notification for expanded LDEVs
+      ansible.builtin.mail:
+        host: "{{ smtp_host }}"
+        port: "{{ smtp_port }}"
+        username: "{{ smtp_username }}"
+        password: "{{ smtp_password }}"
+        to: "{{ email_to }}"
+        from: "{{ email_from }}"
+        subject: "LDEV Expansion Notification - Volumes Expanded by 10%"
+        body: |
+          The following LDEVs had over 80% usage and were expanded by 10%:
+
+          {% for ldev in high_usage_ldevs %}
+          - LDEV ID: {{ ldev.ldev_id }}
+            Name: {{ ldev.name }}
+            Used: {{ ldev.used_capacity_in_mb }} MB
+            Total: {{ ldev.total_capacity_in_mb }} MB
+            New Size: {{ ((ldev.total_capacity_in_mb | float * 10.01) | int) }} MB
+          {% endfor %}
+        secure: starttls
+      when: high_usage_ldevs | length > 0

@@ -1,0 +1,38 @@
+---
+- name: Create LDEV using Hitachi module from Jira ticket
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    lun_name: "{{ ticket }}"   # Use Jira ticket ID as the LUN name
+
+  tasks:
+    - name: Get available storage pools
+      hitachivantara.vspone_block.vsp.hv_storagepool_facts:
+        connection_info: "{{ connection_info }}"
+      register: pool_info
+
+    - name: Select pool with max free space
+      set_fact:
+        selected_pool_id: "{{ (pool_info.ansible_facts.storage_pool | sort(attribute='free_capacity', reverse=True))[0].pool_id }}"
+
+    - name: Create LDEV
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          pool_id: "{{ selected_pool_id }}"
+          size: "{{ size | int }}GB"
+          name: "{{ lun_name }}"
+      register: result
+
+    - name: Debug result from LDEV creation
+      debug:
+        msg: "✅ Created LDEV {{ result.volume.ldev_id }} with size {{ size }}GB from Jira ticket {{ ticket }}"
