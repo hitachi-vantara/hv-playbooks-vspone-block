@@ -1,0 +1,44 @@
+---
+####################################################################
+# Example :  Remote connection management Playbook
+####################################################################
+- name: Remote Connection add/remove/update
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ######################################################################################
+    # Task 1 : Create a new remote connection
+    ######################################################################################
+    - name: Create a new remote connection
+      hitachivantara.vspone_block.vsp.hv_remote_connection:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          path_group_id: 1
+          remote_storage_serial_number: "810005"
+          remote_paths:
+            - local_port: "CL5-C"
+              remote_port: "CL1-B"
+            - local_port: "CL6-C"
+              remote_port: "CL2-B"
+          min_remote_paths: 1
+          remote_io_timeout_in_sec: 15
+          round_trip_in_msec: 1
+      register: result
+
+    - name: Debug result
+      ansible.builtin.debug:
+        var: result
+
+
