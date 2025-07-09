@@ -1,6 +1,12 @@
 # hv-playbooks-vspone-block
 
+## Playbook: [Auto-Expand High-Utilization LDEVs](Volume_Ansible_RESTAPI)
+This Ansible playbook is designed to monitor LDEVs (Logical Devices) on a Hitachi VSP subsystem, identify those that exceed **80% utilization**, automatically expand their volume by **10%**, and notify the storage administrator via email.
+It is intended to be scheduled as a **cron job**, providing automated storage management and proactive capacity handling based on real-time usage.  See [Readme.txt](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/tree/main/Volume_Ansible_RESTAPI#:~:text=Readme.txt) for more info.
 
-**DISCLAIMER: **
+## Playbook: [Storage_Jira_Python](Storage_Jira_Python)
+This playbook automates the provisioning of LUNs (Logical Unit Numbers) by integrating Jira issue tracking with Ansible and Hitachi storage modules. It continuously polls Jira for new LUN requests, parses the required size, triggers an Ansible playbook to create the LDEV, and updates the Jira issue with the result.  See [Readme.txt](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/tree/main/Storage_Jira_Python#:~:text=Readme.txt) for more info. 
+
+# **DISCLAIMER: **
 All materials provided in this repository, including but not limited to Ansible Playbooks and Terraform Configurations, are made available as a courtesy. These materials are intended solely as examples, which may be utilized in whole or in part. Neither the contributors nor the users of this platform assert or are granted any ownership rights over the content shared herein. It is the sole responsibility of the user to evaluate the appropriateness and applicability of the materials for their specific use case.
 Use of the material is at the sole risk of the user and the material is provided “AS IS,” without warranty, guarantees, or support of any kind, including, but not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. Unless specified in an applicable license, access to this material grants you no right or license, express or implied, statutorily or otherwise, under any patent, trade secret, copyright, or any other intellectual property right of Hitachi Vantara LLC (“HITACHI”). HITACHI reserves the right to change any material in this document, and any information and products on which this material is based, at any time, without notice. HITACHI shall have no responsibility or liability to any person or entity with respect to any damages, losses, or costs arising from the materials contained herein.
