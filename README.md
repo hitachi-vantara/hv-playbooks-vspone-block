@@ -1,4 +1,4 @@
-# hv-playbooks-vspone-block
+# Playbooks for Hitachi VSP One Block storage systems
 
 ## Playbook: [Auto-Expand High-Utilization LDEVs](Volume_Ansible_RESTAPI)
 This Ansible playbook is designed to monitor LDEVs (Logical Devices) on a Hitachi VSP subsystem, identify those that exceed **80% utilization**, automatically expand their volume by **10%**, and notify the storage administrator via email.
