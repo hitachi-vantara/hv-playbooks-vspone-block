@@ -1,0 +1,41 @@
+---
+####################################################################
+# Example :  TrueCopy Playbook
+####################################################################
+- name: TrueCopy pair operations module
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ########################################################################
+    # Task 15 : Delete TrueCopy pair by copy_group_name and copy_pair_name
+    ########################################################################
+    - name: Delete TrueCopy pair
+      hitachivantara.vspone_block.vsp.hv_truecopy:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: "absent"
+        spec:
+          copy_group_name: "tc-copy-group-3"
+          copy_pair_name: "tc-copy-pair-3"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+
+
