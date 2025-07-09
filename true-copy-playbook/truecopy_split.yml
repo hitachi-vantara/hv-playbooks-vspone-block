@@ -1,0 +1,43 @@
+---
+####################################################################
+# Example :  TrueCopy Playbook
+####################################################################
+- name: TrueCopy pair operations module
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    #####################################################################
+    # Task 3 : Split TrueCopy pair by specifying only the required fields
+    ######################################################################
+    # To make SVOL readable and writable after the split,
+    # is_svol_readwriteable must be set to true. Default is false.
+    - name: Split TrueCopy pair
+      hitachivantara.vspone_block.vsp.hv_truecopy:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: "split"
+        spec:
+          copy_group_name: "tc-copy-group-3"
+          copy_pair_name: "tc-copy-pair-3"
+          is_svol_readwriteable: true
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+

@@ -1,0 +1,54 @@
+---
+####################################################################
+# Example :  TrueCopy Playbook
+####################################################################
+- name: TrueCopy pair operations module
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    #####################################################################
+    # Task 2 : Create a TrueCopy pair by specifying all the fields
+    #####################################################################
+    - name: Create TrueCopy pair
+      hitachivantara.vspone_block.vsp.hv_truecopy:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        state: "present"
+        spec:
+          copy_group_name: "tc-copy-group-3"
+          copy_pair_name: "tc-copy-pair-3"
+          primary_volume_id: 208
+          secondary_pool_id: 17
+          secondary_hostgroup:
+            name: "tc-ansible-hg"
+            port: "CL3-A"
+          fence_level: "NEVER"
+          path_group_id: 1
+          local_device_group_name: "ansible-local-device-group-3"
+          remote_device_group_name: "ansible-remote-device-group-3"
+          is_consistency_group: true
+          consistency_group_id: 0
+          do_initial_copy: true
+          copy_pace: "MEDIUM"
+          is_data_reduction_force_copy: false
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+
