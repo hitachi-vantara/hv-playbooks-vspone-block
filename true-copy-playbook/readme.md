@@ -1,3 +1,5 @@
+# Playbooks for End-to-End TrueCopy Pair Configuration.
+
 These Ansible playbooks were customized to align with the environment’s specific requirements. These modified playbooks were then executed to automate the configuration of TrueCopy pairs, ensuring consistent, efficient, and error-free deployment of remote replication across the connected storage systems.
 
 ## Playbook: (port_attribute.yml) [Change attribute setting of the storage port]
