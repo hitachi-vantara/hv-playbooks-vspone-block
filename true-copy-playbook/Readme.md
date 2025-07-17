@@ -22,7 +22,7 @@ This playbook performs to create a new remote path connection between primary st
 ## Playbook: (remote_path_status.yml) [Get all remote connection information]
 This playbook performs to Get all remote connection information.
 
-## Playbook: (ldev_create_using_pool_id.yml) [Create ldev with size mention]
+## Playbook: (Ldev_create_using_pool_id.yml) [Create ldev with size mention]
 This playbook performs to create ldev.
 
 ## Playbook: (port_security_enable.yml) [Change port security setting of the storage port]
