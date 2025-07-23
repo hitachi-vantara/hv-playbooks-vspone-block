@@ -53,6 +53,26 @@ _The setup was completed by executing a series of Ansible playbooks for the foll
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/tree/main/FC-NVMe-GAD-playbooks#:~:text=Readme.md) for more info.
 
+## Playbook: [End-to-End TrueCopy Pair Configuration](true-copy-playbook)
+These Ansible playbooks are customized to automate the configuration of TrueCopy pair across the connected storage systems.
+ 
+The setup was completed by executing a series of Ansible playbooks for the following tasks:
+- Change attribute setting of the storage port
+- Change port mode setting of the storage port
+- Change fabric mode and port connection settings of the storage port
+- Change port speed and port security settings of the storage port
+- Create a new remote connection
+- Create Ldev
+- Change security setting of the storage port
+- Create hostgroup
+- Create a TrueCopy pair
+- Split TrueCopy pair
+- Resync TrueCopy pair
+- Delete TrueCopy pair
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/true-copy-playbook/Readme.md) for more info.
+
+
 # **DISCLAIMER: **
 All materials provided in this repository, including but not limited to Ansible Playbooks and Terraform Configurations, are made available as a courtesy. These materials are intended solely as examples, which may be utilized in whole or in part. Neither the contributors nor the users of this platform assert or are granted any ownership rights over the content shared herein. It is the sole responsibility of the user to evaluate the appropriateness and applicability of the materials for their specific use case.
 Use of the material is at the sole risk of the user and the material is provided “AS IS,” without warranty, guarantees, or support of any kind, including, but not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. Unless specified in an applicable license, access to this material grants you no right or license, express or implied, statutorily or otherwise, under any patent, trade secret, copyright, or any other intellectual property right of Hitachi Vantara LLC (“HITACHI”). HITACHI reserves the right to change any material in this document, and any information and products on which this material is based, at any time, without notice. HITACHI shall have no responsibility or liability to any person or entity with respect to any damages, losses, or costs arising from the materials contained herein.
