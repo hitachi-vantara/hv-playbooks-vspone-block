@@ -32,7 +32,7 @@ This playbook performs to change port security setting of the storage port by po
 ## Playbook: (hostgroup_create.yml) [Create hostgroup]
 This playbook performs to Create hostgroup on a storage port.
 
-## Playbook: (truecopy_PAIR_create_TASK2.yml) [Create a TrueCopy pair by specifying few fields]
+## Playbook: (truecopy_PAIR_create.yml) [Create a TrueCopy pair by specifying few fields]
 This playbook performs to create a TrueCopy pair by specifying all the fields like primary_volume_id, secondary_pool_id, secondary_hostgroup, fence_level, path_group_id, etc.
 
 ## Playbook: (truecopy_split.yml) [Split TrueCopy pair]
@@ -41,10 +41,10 @@ This playbook performs to split TrueCopy pair by specifying few required fields.
 ## Playbook: (truecopy_resync.yml) [Resync TrueCopy pair ]
 This playbook performs to resync TrueCopy pair by copy_group_name and copy_pair_name.
 
-## Playbook: (truecopy_PAIR_STATUS_TASK1.yml) [Get all TrueCopy pairs]
+## Playbook: (truecopy_PAIR_STATUS.yml) [Get all TrueCopy pairs]
 This playbook performs to get all TrueCopy pairs in a storage.
 
-## Playbook: (truecopy_PAIR_delete_TASK15.yml) [Delete TrueCopy pair]
+## Playbook: (truecopy_PAIR_delete.yml) [Delete TrueCopy pair]
 This playbook performs to delete TrueCopy pair by copy_group_name and copy_pair_name.
 
 ## Playbook: (remote_path_delete.yml) [Delete a remote connection]
