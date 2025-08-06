@@ -1,0 +1,314 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_1.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+
+
+  tasks:
+    ####################################################################
+    # Task 1: Create Storage Pool on MCU
+    ####################################################################
+    - name: Create Storage Pool on MCU
+      hitachivantara.vspone_block.vsp.hv_storagepool:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          name: "{{ mcu_pool_name }}"
+          type: "{{ mcu_pool_type }}"
+          pool_volumes: "{{ mcu_pool_vols_list }}"
+      register: pool_creation_result
+
+    ####################################################################
+    # Task 1: Create Storage Pool on RCU
+    ####################################################################
+    - name: Create Storage Pool on RCU
+      hitachivantara.vspone_block.vsp.hv_storagepool:
+        connection_info: "{{ rcu_connection_info }}"
+        state: present
+        spec:
+          type: "{{ rcu_pool_type }}"
+          id: "{{ rcu_pool_id }}"
+          pool_volumes: "{{ rcu_pool_vols_list }}"
+      register: pool_creation_result
+
+
+    ####################################################################
+    # Task 2: Gather Existing LDEVs in the Specified Range
+    ####################################################################
+    - name: Gather Existing LDEVs in the Range
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          start_ldev_id: "{{ ldev_start_id }}"
+          end_ldev_id: "{{ ldev_end_id }}"
+      register: existing_ldevs
+
+    ####################################################################
+    # Task 3: Create LDEVs (only if not already present)
+    ####################################################################
+    - name: Create Missing LDEVs
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ item }}"
+          pool_id: "{{ mcu_pool_id }}"
+          size: "{{ ldev_size }}"
+          name: "{{ ldev_name_prefix }}_{{ item }}"
+      loop: "{{ range(ldev_start_id, ldev_end_id + 1) | list }}"
+      register: ldev_creation_result
+      when: item not in (existing_ldevs.ansible_facts.volumes | default([]) | map(attribute='ldev_id') | list)
+
+    ####################################################################
+    # Task 4: Set New LDEVs Variable (only those where changes occurred)
+    ####################################################################
+    - name: Set New LDEVs Variable
+      set_fact:
+        new_ldevs: "{{ ldev_creation_result.results | selectattr('changed','equalto', True) | list }}"
+
+    ####################################################################
+    # Task 5: Calculate LDEV Batches for Host Group Mapping
+    ####################################################################
+    - name: Calculate LDEV Batches for Host Group Mapping
+      set_fact:
+        ldev_batches: >-
+          {{
+            new_ldevs | map(attribute='item') | list | batch( (new_ldevs | length / host_groups | length) | round(0, 'ceil') | int, '')
+          }}
+
+    ####################################################################
+    # Task 6: Create Host Groups with Assigned LDEVs (Skip if batch is empty)
+    ####################################################################
+    - name: Create Host Groups with Assigned LDEVs
+      when: new_ldevs | length > 0
+      loop: "{{ host_groups }}"
+      loop_control:
+        index_var: hg_index
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          name: "{{ item.name }}"
+          port: "{{ item.port }}"
+          host_mode: "{{ item.host_mode }}"
+          ldevs: "{{ (ldev_batches[hg_index] if hg_index < (ldev_batches | length) else []) | reject('equalto', '') | list }}"
+          wwns: "{{ item.wwns }}"
+      register: hostgroup_creation_results
+      when: (ldev_batches[hg_index] if hg_index < (ldev_batches | length) else []) | length > 0
+
+    ####################################################################
+    # Task 1 : Create hostgroup on RCU
+    ####################################################################
+    - name: Create hostgroup
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ rcu_connection_info }}"
+        state: "present"
+        spec:
+          name: "{{ secondary_hg_name }}"
+          port: "{{ secondary_port }}"
+          host_mode: "LINUX"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+
+
+    ######################################################################################
+    # Task 4 : Create a Resource Group with with the following resources for RCU
+    ######################################################################################
+    - name: Create a Resource Group with above resources
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          name: "{{ rg_name }}"
+          virtual_storage_serial: "{{ virtual_serial_number }}"
+          virtual_storage_model: "{{ vsm_model }}"
+          ports: ["{{ secondary_port }}"]
+          host_groups:
+            - port: "{{ secondary_port }}"
+              name: "{{ secondary_hg_name }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+
+    ####################################################################
+    # Task Name : Register Quorum Disk on MCU
+    ####################################################################
+    - name: Register Quorum Disk on MCU
+      hitachivantara.vspone_block.vsp.hv_quorum_disk:
+        connection_info: "{{ connection_info }}"
+        spec:
+          remote_storage_serial_number: "{{ secondary_storage_serial }}"
+          remote_storage_type: "{{ mcu_storage_type }}"
+          ldev_id: "{{ mcu_quorum_ldev }}"
+          id: "{{ mcu_quorum_id }}"
+
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    ####################################################################
+    # Task Name : Register Quorum Disk on RCU
+    ####################################################################
+    - name: Register Quorum Disk on RCU
+      hitachivantara.vspone_block.vsp.hv_quorum_disk:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          remote_storage_serial_number: "{{ storage_serial }}"
+          remote_storage_type: "{{ rcu_storage_type }}"
+          ldev_id: "{{ rcu_quorum_ldev }}"
+          id: "{{ rcu_quorum_id }}"
+
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    ######################################################################################
+    # Task 1 : Create a remote connection on MCU
+    ######################################################################################
+    - name: Create a new remote connection on MCU
+      hitachivantara.vspone_block.vsp.hv_remote_connection:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          path_group_id: 0
+          remote_storage_serial_number: "{{ secondary_storage_serial }}"
+          remote_paths: "{{ mcu_remote_paths_list }}"
+          min_remote_paths: 1
+          remote_io_timeout_in_sec: 15
+          round_trip_in_msec: 1
+      register: result
+
+    - name: Debug result
+      ansible.builtin.debug:
+        var: result
+
+    ######################################################################################
+    # Task 1 : Create remote connection on RCU
+    ######################################################################################
+    - name: Create a new remote connection on RCU
+      hitachivantara.vspone_block.vsp.hv_remote_connection:
+        connection_info: "{{ rcu_connection_info }}"
+        state: present
+        spec:
+          path_group_id: 0
+          remote_storage_serial_number: "{{ storage_serial }}"
+          remote_paths: "{{ rcu_remote_paths_list }}"
+          min_remote_paths: 1
+          remote_io_timeout_in_sec: 15
+          round_trip_in_msec: 1
+      register: result
+
+    - name: Debug result
+      ansible.builtin.debug:
+        var: result
+
+
+
+    #####################################################################
+    # Task X: Create GAD pairs for each new LDEV
+    #####################################################################
+    - name: Create GAD pair for each created LDEV
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ rcu_connection_info }}"
+        spec:
+          primary_storage_serial_number: "{{ storage_serial }}"
+          secondary_storage_serial_number: "{{ secondary_storage_serial }}"
+          copy_group_name: "{{ copy_group_name  }}"
+          copy_pair_name: "pair_ldev_{{ item }}"
+          primary_volume_id: "{{ item }}"
+          secondary_pool_id: "{{ rcu_pool_id }}"
+          secondary_hostgroups:
+            - name: "{{ secondary_hg_name }}"
+              port: "{{ secondary_port }}"
+          quorum_disk_id: "{{ mcu_quorum_id }}"
+          path_group_id: 0
+      loop: "{{ new_ldevs | map(attribute='item') | list }}"
+      loop_control:
+        label: "{{ item }}"
+      register: gad_pair_results
+      when: new_ldevs | length > 0
+
+    - name: Debug GAD pair creation results
+      ansible.builtin.debug:
+        var: gad_pair_results
+      when: new_ldevs | length > 0
+
+
+
+    ####################################################################
+    # Task 7: Build Consolidated Pre-Configuration Report Text
+    ####################################################################
+    - name: Build Consolidated Pre-Configuration Report Text
+      set_fact:
+        pre_config_report: |
+          ================= GAD Pre-Configuration Report =================
+          Existing LDEVs:
+          {% if existing_ldevs.ansible_facts.volumes is defined and (existing_ldevs.ansible_facts.volumes | length) > 0 %}
+            Count: {{ existing_ldevs.ansible_facts.volumes | length }}
+            LDEV IDs: {{ existing_ldevs.ansible_facts.volumes | map(attribute='ldev_id') | join(', ') }}
+          {% else %}
+            None Found.
+          {% endif %}
+          -------------------------------------------
+          LDEV Creation Results:
+          {% set new_ldevs = ldev_creation_result.results | selectattr('changed','equalto', True) | list %}
+          New LDEVs Created: {{ new_ldevs | length }}
+          {% if new_ldevs | length > 0 %}
+            Created LDEV IDs: {{ new_ldevs | map(attribute='item') | join(', ') }}
+          {% else %}
+            Created LDEV IDs: None
+          {% endif %}
+          -------------------------------------------
+          Host Groups Creation:
+          {% for hg in hostgroup_creation_results.results | default([]) %}
+            {% set hg_data = hg.get('host_group', {}) %}
+            {% if hg_data %}
+              - Host Group Name: {{ hg_data.host_group_name }}
+                ID: {{ hg_data.host_group_id }}
+                Associated LDEVs: {{ hg_data.lun_paths | map(attribute='ldev_id') | join(', ') }}
+            {% else %}
+              - Host Group: Data not available.
+            {% endif %}
+          {% else %}
+            No Host Groups Created.
+          {% endfor %}
+          ============================================================
+    
+    ####################################################################
+    # Task 8: Write the Pre-Configuration Report to a File
+    ####################################################################
+    - name: Write Pre-Configuration Report to File
+      copy:
+        content: "{{ pre_config_report }}"
+        dest: "/tmp/gad_pre_config_report.txt"
+    
+    - name: Inform User About the Report File
+      debug:
+        msg: "The GAD Pre-Configuration Report has been written to /tmp/gad_pre_config_report.txt"
+
