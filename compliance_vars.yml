@@ -1,0 +1,48 @@
+# compliance_vars.yml
+
+###########################################
+# GAD Pair Compliance Variables
+###########################################
+# Expected copy pace track size for each GAD pair.
+expected_gad_copy_pace: 3
+
+# Expected copy rate for each GAD pair.
+expected_gad_copy_rate: 100
+
+###########################################
+# LDEV Compliance Variables
+###########################################
+# Expected LDEV status (e.g., NORMAL).
+expected_ldev_status: "NML"
+
+# Expected deduplication compression status.
+expected_ldev_dedup_compression_status: "DISABLED"
+
+# Expected deduplication compression mode.
+expected_ldev_dedup_compression_mode: "disabled"
+
+# Minimum required number of paths.
+expected_ldev_min_path_count: 1
+
+# Expected provision type for the LDEV (e.g., DP).
+expected_ldev_provision_type: "GAD"
+
+###########################################
+# Parity Group Compliance Variables
+###########################################
+# Minimum free capacity (in TB or as a float value) for parity groups.
+expected_parity_free_capacity: 1.0
+
+# List of expected LDEV IDs in each parity group.
+expected_ldev_ids: [3, 1032, 1033]
+
+###########################################
+# Storage Pool Compliance Variables
+###########################################
+# Expected pool status.
+expected_pool_status: "NORMAL"
+
+# Minimum free capacity for the storage pool (in bytes; 1073741824 = 1GB).
+pool_min_free_capacity: 1073741824
+
+

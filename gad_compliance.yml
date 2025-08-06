@@ -1,0 +1,163 @@
+---
+- name: GAD Compliance Report with Configurable Thresholds
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - compliance_vars.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task 2: Retrieve GAD Pair Facts
+    ####################################################################
+    - name: Get all GAD pairs
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        connection_info: "{{ connection_info }}"
+        spec:
+      register: gad_result
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: gad_result
+
+
+    ####################################################################
+    # Task 3: Retrieve Parity Group Facts
+    ####################################################################
+    - name: Get all parity groups
+      hitachivantara.vspone_block.vsp.hv_paritygroup_facts:
+        connection_info: "{{ connection_info }}"
+          #storage_system_info:
+          #serial: "{{ storage_serial }}"
+        spec:
+      register: parity_result
+        #- name: Display parity result
+        #debug:
+        #var: parity_result
+
+
+
+    ####################################################################
+    # Task 4: Retrieve Storage Pool Facts
+    ####################################################################
+    - name: Get all storage pools
+      hitachivantara.vspone_block.vsp.hv_storagepool_facts:
+        connection_info: "{{ connection_info }}"
+          #storage_system_info:
+          #serial: "{{ storage_serial }}"
+        spec:
+      register: pool_result
+        #- name: Display pool result
+        #debug:
+        #var: pool_result
+
+    ####################################################################
+    # Task 5a: Retrieve Primary LDEV Details for each GAD pair
+    ####################################################################
+    - name: Gather Primary LDEV Details for each GAD pair
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          ldev_id: "{{ gad.primary_volume_id }}"
+      loop: "{{ gad_result.ansible_facts.gad_pair | default([]) }}"
+      loop_control:
+        loop_var: gad
+      register: gad_ldev_details
+        #- name: Display GAD LDEV Details (Full Output)
+        #debug:
+        #var: gad_ldev_details
+
+    ####################################################################
+    # Task 5b: Retrieve Secondary LDEV Details for each GAD pair
+    ####################################################################
+    - name: Gather Secondary LDEV Details for each GAD pair
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ secondary_connection_info }}"
+        spec:
+          ldev_id: "{{ gad.secondary_volume_id }}"
+      loop: "{{ gad_result.ansible_facts.gad_pair | default([]) }}"
+      loop_control:
+        loop_var: gad
+      register: gad_secondary_ldev_details
+  ####################################################################
+    # Task 6: Build Final Consolidated Compliance Report
+    ####################################################################
+    - name: Build Final Consolidated Compliance Report Text
+      set_fact:
+        final_compliance_report: |
+          ================= Final Compliance Report =================
+          -----------------------------------------------------------
+          GAD Pair Compliance:
+          {% for i in range(0, gad_result.ansible_facts.gad_pair | length) %}
+            {% set gad = gad_result.ansible_facts.gad_pair[i] %}
+              - Copy Pace Track Size: {{ gad.copy_pace_track_size }} -> {{ 'PASSED' if gad.copy_pace_track_size == expected_gad_copy_pace else 'FAILED' }}
+              - Copy Rate           : {{ gad.copy_rate }} -> {{ 'PASSED' if gad.copy_rate == expected_gad_copy_rate else 'FAILED' }}
+              - Primary LDEV ID     : {{ gad.primary_volume_id }}
+              - Secondary LDEV ID   : {{ gad.secondary_volume_id }}
+              ---------------------------
+              Primary LDEV Compliance:
+              {% set primary_ldev = gad_ldev_details.results[i].ansible_facts.volumes[0] %}
+              - LDEV Status         : {{ primary_ldev.status }} -> {{ 'PASSED' if primary_ldev.status == expected_ldev_status else 'FAILED' }}
+              - LDEV Total Capacity : {{ primary_ldev.total_capacity }}
+              - Dedupe Compression Status : {{ primary_ldev.dedup_compression_status }} -> {{ 'PASSED' if primary_ldev.dedup_compression_status == expected_ldev_dedup_compression_status else 'FAILED' }}
+              - Dedupe Compression Mode   : {{ primary_ldev.deduplication_compression_mode }} -> {{ 'PASSED' if primary_ldev.deduplication_compression_mode == expected_ldev_dedup_compression_mode else 'FAILED' }}
+              - Path Count          : {{ primary_ldev.path_count }} -> {{ 'PASSED' if (primary_ldev.path_count | int) >= expected_ldev_min_path_count else 'FAILED' }}
+              - Provision Type      : {{ primary_ldev.provision_type }} -> {{ 'PASSED' if expected_ldev_provision_type | lower in primary_ldev.provision_type | lower else 'FAILED' }}
+              ---------------------------
+              Secondary LDEV Compliance:
+              {% set secondary_ldev = gad_secondary_ldev_details.results[i].ansible_facts.volumes[0] %}
+              - LDEV Status         : {{ secondary_ldev.status }} -> {{ 'PASSED' if secondary_ldev.status == expected_ldev_status else 'FAILED' }}
+              - LDEV Total Capacity : {{ secondary_ldev.total_capacity }}
+              - Dedupe Compression Status : {{ secondary_ldev.dedup_compression_status }} -> {{ 'PASSED' if secondary_ldev.dedup_compression_status == expected_ldev_dedup_compression_status else 'FAILED' }}
+              - Dedupe Compression Mode   : {{ secondary_ldev.deduplication_compression_mode }} -> {{ 'PASSED' if secondary_ldev.deduplication_compression_mode == expected_ldev_dedup_compression_mode else 'FAILED' }}
+              - Path Count          : {{ secondary_ldev.path_count }} -> {{ 'PASSED' if (secondary_ldev.path_count | int) >= expected_ldev_min_path_count else 'FAILED' }}
+              - Provision Type      :{{ secondary_ldev.provision_type }} -> {{ 'PASSED' if expected_ldev_provision_type | lower in secondary_ldev.provision_type | lower else 'FAILED' }}
+              - Associated Parity Group (based on primary LDEV):
+                {% set found = false %}
+                {% for pg in parity_result.ansible_facts.parity_groups %}
+                  {% if (gad.primary_volume_id | int) in pg.ldev_ids %}
+                    {% set found = true %}
+                    -> {{ pg.parity_group_id }} (LDEVs: {{ pg.ldev_ids | join(', ') }})
+                  {% endif %}
+                {% endfor %}
+                {% if not found %} Not Found {% endif %}
+          {% endfor %}
+          -----------------------------------------------------------
+          Storage Pools Compliance:
+          {% for pool in pool_result.ansible_facts.storage_pool %}
+          * Pool Name: {{ pool.name }}
+              - Status       : {{ pool.status }} (Expected: {{ expected_pool_status }}) -> {{ 'PASSED' if pool.status == expected_pool_status else 'FAILED' }}
+              - Free Capacity: {{ pool.free_capacity }} -> {{ 'PASSED' if (pool.free_capacity | float) >= pool_min_free_capacity else 'FAILED' }}
+          {% endfor %}
+          ==========================================================
+    
+    - name: Display Final Consolidated Compliance Report
+      debug:
+        msg: "{{ final_compliance_report }}"
+
+
+    
+    ####################################################################
+    # Task 7: Write the Final Report to a File
+    ####################################################################
+    - name: Write Final Compliance Report to file
+      copy:
+        content: "{{ final_compliance_report }}"
+        dest: "/tmp/final_compliance_report.txt"
+    
+    - name: Inform user about the report file
+      debug:
+        msg: "The Final Compliance Report has been written to /tmp/final_compliance_report.txt"
+
+
