@@ -1,0 +1,112 @@
+####################################################################
+# pre_provision_vars.yml
+# - Values containing leading zeros or colons should be quoted.
+# - Sections are ordered by the sequence of tasks: connection → pools → LDEVs
+#   → ports/hostgroups → host mode/HMOs → initiators/WWNs/CHAP → resource/copy
+#   groups → quorum → remote paths/connections → GAD pairing → diagnostics.
+####################################################################
+
+####################################################################
+# Playbook States
+####################################################################
+state_absent: absent
+state_present: present
+state_restore: restore
+state_resync: resync
+state_split: split
+state_sync: sync
+
+####################################################################
+# Substates (spec.state inner field)
+####################################################################
+substate_absent: absent
+substate_add_chap_user: add_chap_user
+substate_add_iscsi_initiator: add_iscsi_initiator
+substate_add_wwn: add_wwn
+substate_present_ldev: present_ldev
+substate_remove_chap_user: remove_chap_user
+substate_remove_iscsi_initiator: remove_iscsi_initiator
+substate_remove_wwn: remove_wwn
+substate_set_host_mode_and_hmo: set_host_mode_and_hmo
+substate_unpresent_ldev: unpresent_ldev
+
+####################################################################
+# Pools and Storage Pools
+####################################################################
+mcu_pool_name: jonamaypool_mcu_8
+mcu_pool_type: HDP
+mcu_pool_vols_list:
+  - parity_group_id: 1-5
+    capacity: 60GB
+rcu_pool_id: 0
+
+rcu_pool_type: HDP
+rcu_pool_vols_list:
+  - parity_group_id: 1-3
+    capacity: 60GB
+
+####################################################################
+# LDEVs and Volume Layout
+####################################################################
+ldev_end_id: 446
+ldev_start_id: 445
+
+ldev_name_prefix: JonathanVol
+ldev_size: 10GB
+mcu_pool_id: 1
+host_groups:
+  - name: mcu-vol-jonnnn7
+    port: CL1-E
+    host_mode: LINUX
+    wwns:
+    - 10005cba2cfc319d
+  - name: mcu-vol-jonnnn8
+    port: CL3-E
+    host_mode: LINUX
+    wwns:
+    - 10005cba2cfc319e
+copy_group_name: gad_jon8
+
+####################################################################
+# Other Task-driven Variables
+####################################################################
+secondary_hg_name: rcu-jonathan__7
+secondary_port: CL1-A
+
+####################################################################
+# Resource and Copy Groups
+####################################################################
+rg_name: jonathan_rg__8
+virtual_serial_number: 60233
+vsm_model: VSP_5600H
+
+####################################################################
+# Quorum Configuration
+####################################################################
+mcu_quorum_id: 2
+mcu_quorum_ldev: 29
+mcu_storage_type: R9
+rcu_quorum_id: 2
+rcu_quorum_ldev: 7424
+rcu_storage_type: R9
+
+####################################################################
+# Connection and Environment
+####################################################################
+mcu_remote_paths_list:
+  - local_port: CL1-E
+    remote_port: CL1-C
+  - local_port: CL3-E
+    remote_port: CL1-E
+rcu_remote_paths_list:
+  - local_port: CL1-C
+    remote_port: CL1-E
+  - local_port: CL1-E
+    remote_port: CL3-E
+
+####################################################################
+# General and Miscellaneous Settings
+####################################################################
+path_group_id: 0
+rcu_pool_name: jonamaypool_rcu_7
+
