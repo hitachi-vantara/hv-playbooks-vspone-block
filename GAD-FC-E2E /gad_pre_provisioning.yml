@@ -21,7 +21,7 @@
 
   tasks:
     ####################################################################
-    # Task 1: Create Storage Pool on MCU
+    # Task : Create Storage Pool on MCU
     ####################################################################
     - name: Create Storage Pool on MCU
       hitachivantara.vspone_block.vsp.hv_storagepool:
@@ -34,7 +34,7 @@
       register: pool_creation_result
 
     ####################################################################
-    # Task 1: Create Storage Pool on RCU
+    # Task : Create Storage Pool on RCU
     ####################################################################
     - name: Create Storage Pool on RCU
       hitachivantara.vspone_block.vsp.hv_storagepool:
@@ -48,7 +48,7 @@
 
 
     ####################################################################
-    # Task 2: Gather Existing LDEVs in the Specified Range
+    # Task : Gather Existing LDEVs in the Specified Range
     ####################################################################
     - name: Gather Existing LDEVs in the Range
       hitachivantara.vspone_block.vsp.hv_ldev_facts:
@@ -59,7 +59,7 @@
       register: existing_ldevs
 
     ####################################################################
-    # Task 3: Create LDEVs (only if not already present)
+    # Task : Create LDEVs (only if not already present)
     ####################################################################
     - name: Create Missing LDEVs
       hitachivantara.vspone_block.vsp.hv_ldev:
@@ -75,14 +75,14 @@
       when: item not in (existing_ldevs.ansible_facts.volumes | default([]) | map(attribute='ldev_id') | list)
 
     ####################################################################
-    # Task 4: Set New LDEVs Variable (only those where changes occurred)
+    # Task : Set New LDEVs Variable (only those where changes occurred)
     ####################################################################
     - name: Set New LDEVs Variable
       set_fact:
         new_ldevs: "{{ ldev_creation_result.results | selectattr('changed','equalto', True) | list }}"
 
     ####################################################################
-    # Task 5: Calculate LDEV Batches for Host Group Mapping
+    # Task : Calculate LDEV Batches for Host Group Mapping
     ####################################################################
     - name: Calculate LDEV Batches for Host Group Mapping
       set_fact:
@@ -92,7 +92,7 @@
           }}
 
     ####################################################################
-    # Task 6: Create Host Groups with Assigned LDEVs (Skip if batch is empty)
+    # Task : Create Host Groups with Assigned LDEVs (Skip if batch is empty)
     ####################################################################
     - name: Create Host Groups with Assigned LDEVs
       when: new_ldevs | length > 0
@@ -112,7 +112,7 @@
       when: (ldev_batches[hg_index] if hg_index < (ldev_batches | length) else []) | length > 0
 
     ####################################################################
-    # Task 1 : Create hostgroup on RCU
+    # Task  : Create hostgroup on RCU
     ####################################################################
     - name: Create hostgroup
       hitachivantara.vspone_block.vsp.hv_hg:
@@ -131,7 +131,7 @@
 
 
     ######################################################################################
-    # Task 4 : Create a Resource Group with with the following resources for RCU
+    # Task  : Create a Resource Group with with the following resources for RCU
     ######################################################################################
     - name: Create a Resource Group with above resources
       hitachivantara.vspone_block.vsp.hv_resource_group:
@@ -152,7 +152,7 @@
 
 
     ####################################################################
-    # Task Name : Register Quorum Disk on MCU
+    # Task : Register Quorum Disk on MCU
     ####################################################################
     - name: Register Quorum Disk on MCU
       hitachivantara.vspone_block.vsp.hv_quorum_disk:
@@ -170,7 +170,7 @@
         var: result
 
     ####################################################################
-    # Task Name : Register Quorum Disk on RCU
+    # Task : Register Quorum Disk on RCU
     ####################################################################
     - name: Register Quorum Disk on RCU
       hitachivantara.vspone_block.vsp.hv_quorum_disk:
@@ -188,7 +188,7 @@
         var: result
 
     ######################################################################################
-    # Task 1 : Create a remote connection on MCU
+    # Task  : Create a remote connection on MCU
     ######################################################################################
     - name: Create a new remote connection on MCU
       hitachivantara.vspone_block.vsp.hv_remote_connection:
@@ -208,7 +208,7 @@
         var: result
 
     ######################################################################################
-    # Task 1 : Create remote connection on RCU
+    # Task  : Create remote connection on RCU
     ######################################################################################
     - name: Create a new remote connection on RCU
       hitachivantara.vspone_block.vsp.hv_remote_connection:
@@ -230,7 +230,7 @@
 
 
     #####################################################################
-    # Task X: Create GAD pairs for each new LDEV
+    # Task : Create GAD pairs for each new LDEV
     #####################################################################
     - name: Create GAD pair for each created LDEV
       hitachivantara.vspone_block.vsp.hv_gad:
@@ -262,7 +262,7 @@
 
 
     ####################################################################
-    # Task 7: Build Consolidated Pre-Configuration Report Text
+    # Task : Build Consolidated Pre-Configuration Report Text
     ####################################################################
     - name: Build Consolidated Pre-Configuration Report Text
       set_fact:
@@ -301,7 +301,7 @@
           ============================================================
     
     ####################################################################
-    # Task 8: Write the Pre-Configuration Report to a File
+    # Task : Write the Pre-Configuration Report to a File
     ####################################################################
     - name: Write Pre-Configuration Report to File
       copy:
