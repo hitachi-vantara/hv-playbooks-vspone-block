@@ -1,0 +1,135 @@
+---
+######################################################################################
+# Example :  Snapshot Facts Playbook
+######################################################################################
+- name: Snapshot Pair Facts
+  hosts: localhost
+  gather_facts: false
+  vars_prompt:
+    - name: "PVOL_id"
+      prompt: "Please enter the Primary_volume_id (e.g., convert from Hex[00:00:22] to Decimal[34])"
+      private: no
+
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+    ######################################################################################
+     # Task Name : Get snapshot pairs with same primary_volume_id
+    ######################################################################################
+    - name: Get snapshot pairs with same primary_volume_id
+      hitachivantara.vspone_block.vsp.hv_snapshot_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          primary_volume_id: "{{PVOL_id}}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    - debug:
+        msg: "Please check the all Snapshot Pairs and get the mirror_unit_id of required snapshot pair for restore"
+
+######################################################################################
+# Example :  Snapshot  Playbook
+######################################################################################
+- name: Snapshot Pair Module
+  hosts: localhost
+  gather_facts: false
+  vars_prompt:
+    - name: "PVOL_id"
+      prompt: "Please enter the Primary_Volume_id (e.g., convert from Hex[00:00:22] to Decimal[34])"
+      private: no
+    - name: "Mirror_id"
+      prompt: "Please enter the mirror_unit_id"
+      private: no
+
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+
+  tasks:
+    ######################################################################################
+    # Task Name : Restore snapshot pair
+    ######################################################################################
+    - name: Restore snapshot pair
+      hitachivantara.vspone_block.vsp.hv_snapshot:
+        connection_info: "{{ connection_info }}"
+        state: "restore"
+        spec:
+          primary_volume_id: "{{PVOL_id}}"
+          mirror_unit_id: "{{Mirror_id}}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+    - debug:
+        msg: "Your data has been restored to its original spot. Now, remount the directory to access the recovered files"
+
+
+######################################################################################
+# Example : Unmount, XFS Repair, and Remount Volume
+######################################################################################
+
+- name: Unmount, XFS Repair, and Remount Volume
+  hosts: "{{ target_host }}" # Replace with your target host group
+  become: true # Required for mount/unmount and filesystem operations
+  vars_prompt:
+    - name: "target_host"
+      prompt: "Please enter the production server IP for restore"
+      private: no
+
+    - name: "mount_point"
+      prompt: "Please enter the mount path of your XFS volume (e.g., /directory)"
+      private: no
+    - name: "device_path"
+      prompt: "Please enter the device path of your XFS volume (e.g., /dev/sdX or /dev/mapper/volume_group-logical_volume"
+      private: no
+  tasks:
+    - name: Ensure no processes are using the mount point (optional but recommended)
+      ansible.builtin.command: lsof +f -- {{ mount_point }}
+      register: lsof_output
+      failed_when: lsof_output.stdout != ""
+      changed_when: false
+      ignore_errors: true # Allow the playbook to continue if processes are found
+
+    - name: Unmount the XFS volume
+      ansible.builtin.command: "umount -f {{ mount_point }}"
+      become: true
+      ignore_errors: true
+
+    - name: Perform XFS repair on the volume
+      ansible.builtin.command: xfs_repair -L {{ device_path }} # -L option to force log zeroing
+      args:
+        creates: /tmp/xfs_repair_done # Prevent re-running if already executed
+      register: xfs_repair_result
+      changed_when: xfs_repair_result.rc != 0 # Mark as changed if repair was needed
+      ignore_errors: true
+
+    - name: Remount the XFS volume
+      ansible.posix.mount:
+        path: "{{ mount_point }}"
+        src: "{{ device_path }}"
+        fstype: xfs
+        state: mounted
+      become: true
+
