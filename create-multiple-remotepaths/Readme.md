@@ -5,7 +5,7 @@ This Ansible Playbook creates multiple remote paths based on user input in a var
 
 # Test Environment
 Remote path connections are essential for Hitachi remote replication products such as Global-Active Device (GAD), Universal Replicator (UR), and True Copy (TC). Below diagram depicts a standard remote path configuration for GAD/UR or TC.
-![Remote Replication Diagram](create-multiple-remotepaths/create-multiple-remotepaths/assets/Remote_Replication.png)
+![Remote Replication Diagram](create-multiple-remotepaths/assets/Remote_Replication.png)
 In the above diagram, four remote paths (two paths in each path group) are shown. 
 
 # Prerequisite
