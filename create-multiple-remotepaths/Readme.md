@@ -30,7 +30,7 @@ vault_secondary_storage_secret: <password>
 
 Create a “_var.yml_” file that defines the MCU and RCU port mappings for each remote connection. In the above diagram, for example, CL5-A from MCU connects to CL5-B of RCU in Path Group ID 0. List each pair of ports for a given path group on the same line, separated by commas. For additional path groups, add new lines as shown in the sample variable file content below. Repeat the same process for RCU paths.
 
-**Sample Input for “var.yml” file:**
+**Sample input for “var.yml” file:**
 ```
 mcu_remote_paths:
   - "CL5-A CL5-B,CL6-A CL6-B,0"
