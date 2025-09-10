@@ -1,0 +1,125 @@
+---
+####################################################################
+# Combined Playbook: Create and Retrieve Remote Connections
+# Note that, before running this playbook, register remote storage using remote_storage_registration.yml playbook
+####################################################################
+- name: Create and retrieve remote connections
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+    remote_configs: >
+      {{
+        (mcu_remote_paths | map('regex_replace', '^', 'mcu:') | list) +
+        (rcu_remote_paths | map('regex_replace', '^', 'rcu:') | list)
+      }}
+
+  tasks:
+
+    - name: Parse MCU/RCU and create remote connections
+      vars:
+        type: "{{ item.split(':')[0] }}"
+        config: "{{ item.split(':')[1] }}"
+        port_pairs: "{{ config.split(',')[:-1] }}"
+        path_group_id: "{{ config.split(',')[-1] | int }}"
+        remote_paths: >-
+          [
+          {% for pair in port_pairs %}
+            {% set ports = pair.split() %}
+            {% if ports | length == 2 %}
+              { "local_port": "{{ ports[0] }}", "remote_port": "{{ ports[1] }}" }{{ "," if not loop.last else "" }}
+            {% endif %}
+          {% endfor %}
+          ]
+      hitachivantara.vspone_block.vsp.hv_remote_connection:
+        connection_info: "{{ connection_info if type == 'mcu' else secondary_connection_info }}"
+        state: present
+        spec:
+          path_group_id: "{{ path_group_id }}"
+          remote_storage_serial_number: "{{ (secondary_storage_serial if type == 'mcu' else storage_serial) | trim }}"
+          remote_paths: "{{ remote_paths }}"
+          min_remote_paths: 1
+          remote_io_timeout_in_sec: 15
+          round_trip_in_msec: 1
+      loop: "{{ remote_configs }}"
+      ignore_errors: yes
+      register: remote_path_creation_result
+
+    - name: Format remote connection report
+      set_fact:
+        remote_results: "{{ remote_path_creation_result.results }}"
+    ####################################################################
+    # Task: Initialize the Remote Path Creation Report Variable
+    ####################################################################
+    - name: Initialize remote path creation report
+      set_fact:
+        remote_path_creation_report: "===================== Remote Path Creation Report ==================\n"
+
+    ####################################################################
+    # Task: Build Remote Path Creation Report from grouped data
+    ####################################################################
+    - name: Generate report content
+      set_fact:
+        remote_path_creation_report: >-
+          {{ remote_path_creation_report + report_section }}
+      vars:
+        report_section: |
+          {% set grouped = {} %}
+          {% for item in remote_results %}
+            {% set addr = item.invocation.module_args.connection_info.address %}
+            {% set remote_serial = item.remote_connection.remote_serial_number %}
+            {% set serial_key =
+              (addr == secondary_storage_address)
+              | ternary(secondary_storage_serial,
+                        (addr == storage_address)
+                        | ternary(storage_serial, 'unknown'))
+            %}
+            {% set key = serial_key|string + '->' + remote_serial|string %}
+            {% if key not in grouped %}
+              {% set _ = grouped.update({key: []}) %}
+            {% endif %}
+            {% set _ = grouped[key].append({
+                "id": item.remote_connection.path_group_id,
+                "paths": item.remote_connection.remote_paths
+            }) %}
+          {% endfor %}
+
+          {% for direction, groups in grouped.items() %}
+          remote paths: {{ direction }}
+          {% for g in groups | sort(attribute='id') %}
+          id: {{ g.id }}
+            paths:
+          {% for p in g.paths %}
+              - {{ p.local_port_id }} -> {{ p.remote_port_id }}
+          {% endfor %}
+          {% endfor %}
+          {% endfor %}
+
+    - name: Generate timestamp
+      set_fact:
+        report_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+    ####################################################################
+    # Task: Write Report to File
+    ####################################################################
+
+    - name: Write Remote Path Creation Report to File
+      copy:
+        content: "{{ remote_path_creation_report }}"
+        dest: "/tmp/remote_path_creation_report_{{storage_serial}}_{{secondary_storage_serial}}_{{ report_timestamp }}.txt"
+
+    - name: Inform User About the Report File
+      debug:
+        msg: "The Remote Path Creation Report has been written to /tmp/remote_path_creation_report_{{storage_serial}}_{{secondary_storage_serial}}_{{ report_timestamp }}.txt"
+
