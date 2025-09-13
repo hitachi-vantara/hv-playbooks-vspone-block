@@ -1,0 +1,119 @@
+---
+####################################################################
+# Playbook: Create LDEVs on MCU and RCU
+####################################################################
+- name: Create LDEVs on MCU and RCU
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+    ldev_configs: >-
+      {{
+        (mcu_ldev |default([])| map('regex_replace','^','mcu_ldev:') | list) +
+        (rcu_ldev |default([])| map('regex_replace','^','rcu_ldev:') | list)
+      }}
+
+  tasks:
+
+    - name: Parse LDEV config list
+      set_fact:
+        parsed_ldevs: >-
+          {%- set result = [] -%}
+          {%- for item in ldev_configs -%}
+            {%- set type, config = item.split(':') -%}
+            {%- set range_str, pool_id = config.split(',') -%}
+            {%- set start_id = range_str.split('-')[0] | int -%}
+            {%- set end_id = range_str.split('-')[1] | int -%}
+            {%- for ldev_id in range(start_id, end_id + 1) -%}
+              {%- set _ = result.append({
+                "type": type,
+                "ldev_id": ldev_id,
+                "pool_id": pool_id | int
+              }) -%}
+            {%- endfor -%}
+          {%- endfor -%}
+          {{ result }}
+
+    - name: Create LDEVs from parsed list
+      loop: "{{ parsed_ldevs }}"
+      loop_control:
+        loop_var: ldev
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info if ldev.type == 'mcu_ldev' else secondary_connection_info }}"
+        state: present
+        spec:
+          ldev_id: "{{ ldev.ldev_id }}"
+          pool_id: "{{ ldev.pool_id }}"
+          size: "{{ default_size }}"
+          name: "{{ ldev_name_prefix }}_{{ ldev.ldev_id }}"
+          capacity_saving:  "{{(mcu_capacity_saving if ldev.type == 'mcu_ldev' else (rcu_capacity_saving | default(omit)))}}"
+          data_reduction_share: "{{(mcu_DRS if ldev.type == 'mcu_ldev' else (rcu_DRS | default(omit)))}}"
+      ignore_errors: yes
+      register: ldev_creation_report
+
+    ####################################################################
+    # Task: Initialize the LDEV Creation Report Variable
+    ####################################################################
+    - name: Initialize ldev creation report
+      set_fact:
+        final_report: "===================== LDEV Creation Report ==================\n"
+
+    ####################################################################
+    # Task: Build LDEV Creation Report
+    ####################################################################
+    - name: Generate report content
+      set_fact:
+        final_report: "{{ final_report }}\n{{ report_section }}"
+      vars:
+        report_section: |
+          {%- set output = {} -%}
+          {%- for item in ldev_creation_report.results if item.volume is defined -%}
+            {%- set sn = item.volume.storage_serial_number -%}
+            {%- set _ = output.setdefault(sn, []) -%}
+            {%- set _ = output[sn].append({
+              "ldev_id": item.volume.ldev_id,
+              "pool_id": item.volume.pool_id,
+              "provision_type": item.volume.provision_type,
+              "deduplication_compression_mode": item.volume.deduplication_compression_mode,
+              "total_capacity": item.volume.total_capacity
+             }) -%}
+          {%- endfor -%}
+
+
+          {% for sn, volumes in output.items() %}
+          SN_{{ '"' ~ sn ~ '":' }}
+          {% for v in volumes %}
+          {{ v.ldev_id }}: ["pool_id": {{ v.pool_id }}, "provision_type": "{{ v.provision_type }}", "deduplication_compression_mode": "{{ v.deduplication_compression_mode }}", "capacity": "{{ v.total_capacity }}" ]
+          {% endfor %}
+          {% endfor %}
+
+    - name: Generate timestamp
+      set_fact:
+        report_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+    ####################################################################
+    # Task: Write Report to File
+    ####################################################################
+    - name: Write Remote Path Creation Report to File
+      copy:
+        content: "{{ final_report }}"
+        dest: "/tmp/ldev_creation_report_{{ report_timestamp }}.txt"
+
+    - name: Inform User About the Report File
+      debug:
+        msg: "The LDEV Creation Report has been written to /tmp/ldev_creation_report_{{ report_timestamp }}.txt"
+
