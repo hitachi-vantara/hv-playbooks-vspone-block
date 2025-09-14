@@ -15,7 +15,9 @@ A sample data volume specification for remote replication is shown in below tabl
 | DRS | false | <- |
 
 Host path mapping for P-Vols can be configured as either multipath or single path, as shown below. In this setup, each host is connected through two HBA ports, and a host group is created on each port using the respective HBA WWPN. In a single-path configuration, different volumes are assigned to separate ports, whereas in a multipath configuration, the same range of volumes is mapped across multiple ports of the same host.
+
 ![P-Vols Host Paths](./assets/P-Vols-host-paths.png)
+
 # Prerequisite
 •	Establish Fibre Channel (FC) zoning between the server and storage system.
 
