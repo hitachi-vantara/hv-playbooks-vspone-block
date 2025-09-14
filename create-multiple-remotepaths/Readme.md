@@ -44,7 +44,7 @@ Note: This playbook works with either MCU, RCU, or both path entries in “var.y
 Run the playbook with _ansible-playbook <playbook_name>_
 This generates an output file as shown below.
 
-**Sample Output**
+**Sample Output:**
 ```
 #cat /tmp/remote_path_creation_report_111111_222222_20250818_044954.txt
 ===================== Remote Path Creation Report ==================
