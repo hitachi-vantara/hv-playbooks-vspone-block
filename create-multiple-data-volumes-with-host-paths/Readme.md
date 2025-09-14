@@ -72,6 +72,27 @@ Run the playbook with _ansible-playbook <playbook_name>_
 
 This generates an output file as shown below.
 
+***Sample Output for LDEV Creation***
+```
+===================== LDEV Creation Report ==================
+
+SN_"611004":
+0: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+1: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+.
+.
+30: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+31: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+
+SN_"611014":
+0: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+1: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+.
+.
+30: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+31: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
+```
+
 **Sample Output for multipath:**
 ```
 ===================== Host Group Creation and LUN Mapping Report ==================
