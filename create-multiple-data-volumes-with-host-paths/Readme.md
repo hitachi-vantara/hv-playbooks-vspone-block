@@ -1,6 +1,6 @@
 # Ansible Playbook: Create Multiple Data Volumes With Host Paths
 # Overview
-An enterprise-class configuration typically requires a large number of volumes, which must be mapped to the host as per requirements. The first playbook, _create_multiple_data_volumes.yml_ creates multiple volumes with specific parameters such as ADR, no-ADR, size, and naming. The second playbook, _create_host_groups_with_lun_paths.yml_ maps them to the host using both multipath and single-path configurations based on users choice.
+An enterprise-class configuration typically requires a large number of volumes, which must be mapped to the host as per requirements. The first playbook, _create_multiple_data_volumes.yml_ creates multiple volumes with specific parameters such as ADR, no-ADR, size, and naming. The second playbook, _create_host_groups_with_lun_paths.yml_ creates host groups and map volumes using both multipath and single path configurations based on users choice.
 
 # Test Environment
 A sample data volume specification for remote replication is shown in below table.
