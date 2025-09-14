@@ -77,14 +77,14 @@ This generates an output file as shown below.
 #cat /tmp/ldev_creation_report_20250913_142203.txt 
 ===================== LDEV Creation Report ==================
 
-SN_"611004":
+SN_"111111":
 0: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 1: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 ...
 30: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 31: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 
-SN_"611014":
+SN_"222222":
 0: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 1: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 ...
@@ -97,11 +97,11 @@ SN_"611014":
 # cat /tmp/ldev_distribution_report_20250913_144445.txt
 ===================== Host Group Creation and LUN Mapping Report ==================
 
-SN: 611014
+SN: 222222
 ==============
 CL1-B [SvolPort]: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 ]
 
-SN: 611004
+SN: 111111
 ==============
 CL1-A [ds220-9, 10000090faf2e4fb]: ['0', '1', '2', '3', '4', '5', '6', '7']
 CL2-A [ds220-9, 10000090faf2e4fa]: ['0', '1', '2', '3', '4', '5', '6', '7']
@@ -117,11 +117,11 @@ CL4-C [ds220-30, 100000109b3ce8bf]: ['24', '25', '26', '27', '28', '29', '30', '
 #cat /tmp/ldev_distribution_report_20250913_150117.txt
 ===================== Host Group Creation and LUN Mapping Report ==================
 
-SN: 611014
+SN: 222222
 ==============
 CL1-B [SvolPort]: [ 0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31 ]
 
-SN: 611004
+SN: 111111
 ==============
 CL1-A [ds220-9, 10000090faf2e4fb]: ['0', '1', '2', '3']
 CL2-A [ds220-9, 10000090faf2e4fa]: ['4', '5', '6', '7']
