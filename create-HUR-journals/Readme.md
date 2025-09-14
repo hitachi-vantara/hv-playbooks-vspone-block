@@ -36,7 +36,7 @@ journal_ldev_config:
   start_journal_id: 0
   copy_pace_setting: "MEDIUM"
 ```
-Note: The playbook will work for either MCU, RCU, or both. Options for "copy_pace_setting" are "SLOW", "MEDIUM", "FAST".
+Note: The playbook will work for either MCU, RCU, or both. Options for "copy_pace_setting" are "SLOW", "MEDIUM", "FAST", default is "LOW".
 
 Run the playbook with _ansible-playbook <playbook_name>_
 
