@@ -72,7 +72,7 @@ Run the playbook with _ansible-playbook <playbook_name>_
 
 This generates an output file as shown below.
 
-***Sample Output for LDEV Creation***
+**Sample Output for LDEV creation:**
 ```
 ===================== LDEV Creation Report ==================
 
