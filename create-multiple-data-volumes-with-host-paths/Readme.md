@@ -68,6 +68,8 @@ port_wwn_map:
   CL4-C: "100000109b3ce8bf,ds220-30"
 
 ```
+Note: If "svolport" is defined, maps the "totalvols_range" (e.g., 0–31) to the RCU. If "svolportlocal" is specified, assigns the next range of the same LDEV set (e.g., 32–63) to the MCU, provided that the volumes are already created.
+
 Run the playbook with _ansible-playbook <playbook_name>_
 
 This generates an output file as shown below.
