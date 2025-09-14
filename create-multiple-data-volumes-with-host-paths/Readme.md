@@ -72,7 +72,7 @@ Run the playbook with _ansible-playbook <playbook_name>_
 
 This generates an output file as shown below.
 
-**Sample Output for multipath**
+**Sample Output for multipath:**
 ```
 ===================== Host Group Creation and LUN Mapping Report ==================
 
@@ -91,7 +91,7 @@ CL2-C [ds220-29, 100000109b5b6ed7]: ['16', '17', '18', '19', '20', '21', '22', '
 CL3-C [ds220-30, 100000109b3ce8c0]: ['24', '25', '26', '27', '28', '29', '30', '31']
 CL4-C [ds220-30, 100000109b3ce8bf]: ['24', '25', '26', '27', '28', '29', '30', '31']
 ```
-**Sample Output for Single path**
+**Sample Output for single path:**
 ```
 ===================== Host Group Creation and LUN Mapping Report ==================
 
