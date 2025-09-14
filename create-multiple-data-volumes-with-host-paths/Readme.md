@@ -35,7 +35,7 @@ vault_secondary_storage_username: <username>
 vault_secondary_storage_secret: <password>
 ```
 # Execution   
-Create a “var.yml”, specify the MCU and RCU volumes, with each line representing the volumes assigned per pool. The file also defines Adaptive Data Reduction (ADR) options (compression, compression_deduplication, or disabled), default LDEV size, a naming prefix for volumes, and whether Data Reduction Share (DRS) is enabled or disabled for MCU and RCU volumes.
+Create a “var.yml”, specify the MCU and RCU volumes, with each line representing the volumes assigned per pool. The file also defines Adaptive Data Reduction (ADR) options ("compression", "compression_deduplication", or "disabled"), default LDEV size, a naming prefix for volumes, and whether Data Reduction Share (DRS) is enabled or disabled for MCU and RCU volumes.
 
 Update the var.yml file with the required parameters for LUN mapping, including the total volume range, multipathing option (Y/N), and port assignments. The “svolport” and “svolportlocal” parameters can be defined if S-Vols need to be mapped, and the “port_wwn_map” section specifies the HBA WWPNs for host group creation. Based on these options, the playbook will create the host groups and map the volumes accordingly. Volumes will be mapped according to above diagram, depending on the selected multipathing option (Y/N).
 
