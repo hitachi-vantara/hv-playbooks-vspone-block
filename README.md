@@ -74,21 +74,13 @@ The setup was completed by executing a series of Ansible playbooks for the follo
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/true-copy-playbook/Readme.md) for more info.
 
 ## Playbook: [Hitachi Thin Image Snapshot Restore](HTIA_snapshotrestore)
-These Ansible playbooks are customized to automate the configuration of TrueCopy pair across the connected storage systems.
- 
-The setup was completed by executing a series of Ansible playbooks for the following tasks:
-- Change attribute setting of the storage port
-- Change port mode setting of the storage port
-- Change fabric mode and port connection settings of the storage port
-- Change port speed and port security settings of the storage port
-- Create a new remote connection
-- Create Ldev
-- Change security setting of the storage port
-- Create hostgroup
-- Create a TrueCopy pair
-- Split TrueCopy pair
-- Resync TrueCopy pair
-- Delete TrueCopy pair
+The snapshot_restore playbook is user-friendly and prompts for input at runtime, making it a valuable tool for anyone needing to perform snapshot restoration on Hitachi VSP storage.
+The playbook performs three key tasks:
+1.	Retrieve Snapshots: It first lists all available snapshots for a specific primary volume (PVOL) provided by the user.
+2.	Restore from Snapshot: The user then selects a snapshot by providing the PVOL and the mirror unit ID, and the playbook restores the data from that snapshot back to its original location.
+3.	Remount Folder: Finally, it remounts the directory to reflect the newly restored data, with the user providing the necessary information to complete the process.
+This script is highly effective and has been successfully used on other projects, demonstrating its reliability for anyone needing a simple solution for Hitachi VSP snapshot restoration.
+
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/HTIA_snapshotrestore/README.md) for more info.
 
