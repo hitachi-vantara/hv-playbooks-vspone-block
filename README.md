@@ -1,3 +1,4 @@
+
 # Ansible Playbooks for Hitachi VSP One Block storage systems
 
 ## Playbook: [Auto-Expand High-Utilization LDEVs](Volume_Ansible_RESTAPI)
@@ -71,6 +72,18 @@ The setup was completed by executing a series of Ansible playbooks for the follo
 - Delete TrueCopy pair
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/true-copy-playbook/Readme.md) for more info.
+
+## Playbook: [Hitachi Thin Image Snapshot Restore](HTIA_snapshotrestore)
+The snapshot_restore playbook is user-friendly and prompts for input at runtime, making it a valuable tool for anyone needing to perform snapshot restoration on Hitachi VSP storage.
+The playbook performs three key tasks:
+1.	Retrieve Snapshots: It first lists all available snapshots for a specific primary volume (PVOL) provided by the user.
+2.	Restore from Snapshot: The user then selects a snapshot by providing the PVOL and the mirror unit ID, and the playbook restores the data from that snapshot back to its original location.
+3.	Remount Folder: Finally, it remounts the directory to reflect the newly restored data, with the user providing the necessary information to complete the process.
+This script is highly effective and has been successfully used on other projects, demonstrating its reliability for anyone needing a simple solution for Hitachi VSP snapshot restoration.
+
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/HTIA_snapshotrestore/README.md) for more info.
+
 
 
 # **DISCLAIMER: **
