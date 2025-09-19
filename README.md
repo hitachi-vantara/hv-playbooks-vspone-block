@@ -1,3 +1,4 @@
+
 # Ansible Playbooks for Hitachi VSP One Block storage systems
 
 ## Playbook: [Auto-Expand High-Utilization LDEVs](Volume_Ansible_RESTAPI)
@@ -71,6 +72,26 @@ The setup was completed by executing a series of Ansible playbooks for the follo
 - Delete TrueCopy pair
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/true-copy-playbook/Readme.md) for more info.
+
+## Playbook: [Hitachi Thin Image Snapshot Restore](HTIA_snapshotrestore)
+These Ansible playbooks are customized to automate the configuration of TrueCopy pair across the connected storage systems.
+ 
+The setup was completed by executing a series of Ansible playbooks for the following tasks:
+- Change attribute setting of the storage port
+- Change port mode setting of the storage port
+- Change fabric mode and port connection settings of the storage port
+- Change port speed and port security settings of the storage port
+- Create a new remote connection
+- Create Ldev
+- Change security setting of the storage port
+- Create hostgroup
+- Create a TrueCopy pair
+- Split TrueCopy pair
+- Resync TrueCopy pair
+- Delete TrueCopy pair
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/HTIA_snapshotrestore/README.md) for more info.
+
 
 
 # **DISCLAIMER: **
