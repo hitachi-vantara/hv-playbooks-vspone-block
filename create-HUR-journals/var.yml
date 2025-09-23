@@ -1,0 +1,13 @@
+#####################################################################
+###########JNL Configuration#########################################
+#####################################################################
+jnl_ldev_name_prefix: "JNL"
+journal_ldev_config:
+  storage: "MCU,RCU"
+  pool_id: 2
+  start_ldev_id: 1024
+  count: 4
+  size_gb: "100GB"
+  start_journal_id: 0
+  copy_pace_setting: "MEDIUM"
+
