@@ -1,0 +1,249 @@
+---
+#########################################################################################################
+# Explanation: This playbook distribute LDEVs to ports and creates hostgroups either:
+# Per hostgroup (multipathing=Y) – LDEVs are grouped and assigned per host.
+#hg_ldev_map = {
+#  h1: [0,1,2,3],
+#  h2: [4,5,6,7]
+#}
+# Per port (multipathing=N) – LDEVs are directly distributed per port individually.
+#port_ldev_map = {
+#  CL1-A: [0,1],
+#  CL2-A: [2,3],
+#  CL3-A: [4,5],
+#  CL4-A: [6,7]
+#}
+#########################################################################################################
+- name: LDEV Distribution Playbook
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+
+    - name: Parse start and end of totalvols_range
+      set_fact:
+        totalvols_range_start: "{{ totalvols_range.split('-')[0] |trim| int }}"
+        totalvols_range_end: "{{ totalvols_range.split('-')[1] |trim| int }}"
+
+    - name: Generate full LDEV list
+      set_fact:
+        ldevs: "{{ range(totalvols_range_start | int, (totalvols_range_end | int) + 1) | list }}"
+
+    - name: Convert port_wwn_map to structured dict
+      set_fact:
+        structured_map: "{{ dict(port_wwn_map.keys() | zip(port_wwn_map.values() | map('split', ',') | map('map', 'trim') | list)) }}"
+
+    - name: Calculate new LDEV range for svolportlocal
+      when: svolportlocal is defined
+      set_fact:
+        svolportlocal_range_start: "{{ (totalvols_range_end | int) + 1 }}"
+        svolportlocal_range_end: "{{ (totalvols_range_end | int) + 1 + ((totalvols_range_end |int) - (totalvols_range_start|int)) }}"
+
+    - name: Generate LDEV list for svolportlocal
+      when: svolportlocal is defined
+      set_fact:
+        svolportlocal_ldevs: "{{ range(svolportlocal_range_start | int, (svolportlocal_range_end | int) + 1) | list }}"
+
+    ####################################################################
+    # If svolport is defined, create it using secondary_connection_info only
+    ####################################################################
+
+    - name: Create hostgroup for svolport (only port & ldevs)
+      when: svolport is defined
+      vars:
+        port_name: "{{ svolport }}"
+        port_ldevs: "{{ ldevs }}"
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ secondary_connection_info }}"
+        state: "present"
+        spec:
+          name: "SvolPort"
+          port: "{{ port_name }}"
+          ldevs: "{{ port_ldevs }}"
+      register: result_svol
+
+    ########################################################################
+    # If svolportlocal is defined, create it using connection_info only
+    # with next range of same number of ldevs
+    ########################################################################
+    - name: Create hostgroup for svolportlocal (only port & new ldevs)
+      when: svolportlocal is defined
+      vars:
+        port_name: "{{ svolportlocal }}"
+        port_ldevs: "{{ svolportlocal_ldevs }}"
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          name: "SvolPortLocal"
+          port: "{{ port_name }}"
+          ldevs: "{{ port_ldevs }}"
+      register: result_svollocal
+
+    ####################################################################
+    # Always execute normal multipathing or non-multipathing logic
+    ####################################################################
+
+    - name: Group ports by hostgroup
+      set_fact:
+        hostgroup_ports: >-
+          {{ hostgroup_ports | default({}) | combine({
+            (structured_map[item][1]): (hostgroup_ports | default({})).get(structured_map[item][1], []) + [item]
+          }) }}
+      loop: "{{ structured_map.keys() | list }}"
+
+    - name: Compute hg_ldev_map (multipathing=Y)
+      when: multipathing == "Y"
+      set_fact:
+        hg_ldev_map: >-
+          {{ dict(
+            hostgroup_ports.keys() | zip(
+              ldevs | batch(ldevs | length // (hostgroup_ports.keys() | length)) | list
+            )
+          ) }}
+
+    - name: Compute port_ldev_map (multipathing=N)
+      when: multipathing == "N"
+      set_fact:
+        port_ldev_map: >-
+          {{ dict(
+            structured_map.keys() | zip(
+              ldevs | batch(ldevs | length // structured_map.keys() | length) | list
+            )
+          ) }}
+    - name: Create hostgroups (multipathing=Y)
+      when: multipathing == "Y"
+      vars:
+        port_name: "{{ item }}"
+        wwn_value: "{{ structured_map[item][0] }}"
+        hg_name: "{{ structured_map[item][1] }}"
+        port_ldevs: "{{ hg_ldev_map[hg_name] | default([]) }}"
+        wwns_list:
+          - wwn: "{{ wwn_value }}"
+            nick_name: "{{ hg_name }}_{{ port_name }}"
+      loop: "{{ structured_map.keys() }}"
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          name: "{{ hg_name }}"
+          port: "{{ port_name }}"
+          host_mode: "LINUX"
+          ldevs: "{{ port_ldevs }}"
+          wwns: "{{ wwns_list }}"
+      register: result_multipath_y
+
+
+    - name: Create hostgroups (multipathing=N)
+      when: multipathing == "N"
+      vars:
+        port_name: "{{ item }}"
+        wwn_value: "{{ structured_map[item][0] }}"
+        port_wwn: "{{ structured_map[item][0] }}"
+        hg_name: "{{ structured_map[item][1] }}"
+        port_ldevs: "{{ port_ldev_map[item] }}"
+        wwns_list:
+          - wwn: "{{ wwn_value }}"
+            nick_name: "{{ hg_name }}_{{ port_name }}"
+      loop: "{{ structured_map.keys() }}"
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          name: "{{ hg_name }}"
+          port: "{{ port_name }}"
+          host_mode: "LINUX"
+          ldevs: "{{ port_ldevs }}"
+          wwns: "{{ wwns_list }}"
+      register: result_multipath_n
+    - name: Initialize LDEV distribution report
+      set_fact:
+        ldev_distribution_report: |
+          ===================== Host Group Creation and LUN Mapping Report ==================
+
+    - name: Determine remote SVOL storage SN
+      set_fact:
+        svol_storage_sn: "{{secondary_storage_serial}}"
+      when: result_svol is defined and (result_svol.host_group | default([])) | length > 0
+
+    - name: Determine local SVOL storage SN
+      set_fact:
+        local_svol_storage_sn: "{{storage_serial}}"
+      when: result_svollocal is defined and (result_svollocal.host_group | default([])) | length > 0
+
+    - name: Append remote SVOL section to report
+      set_fact:
+        ldev_distribution_report: "{{ ldev_distribution_report }}\nSN: {{ svol_storage_sn }}\n==============\n{{ svol_output_report }}"
+      vars:
+        svol_output_report: >-
+          {{ result_svol.host_group.port_id }} [{{ result_svol.host_group.host_group_name }}]:
+          [ {% for lun in result_svol.host_group.lun_paths %}{{ lun.ldev_id }}{% if not loop.last %}, {% endif %}{% endfor %} ]
+      when: result_svol is defined and (result_svol.host_group | default([])) | length > 0
+
+    - name: Append local SVOL section to report
+      set_fact:
+        ldev_distribution_report: "{{ ldev_distribution_report }}\nSN: {{ local_svol_storage_sn }}\n==============\n{{ svol_output_report }}"
+      vars:
+        svol_output_report: >-
+          {{ result_svollocal.host_group.port_id }} [{{ result_svollocal.host_group.host_group_name }}]:
+          [ {% for lun in result_svollocal.host_group.lun_paths %}{{ lun.ldev_id }}{% if not loop.last %}, {% endif %}{% endfor %} ]
+      when: result_svollocal is defined and (result_svollocal.host_group | default([])) | length > 0
+
+
+    - name: Determine multipath/non-multipath storage SN
+      set_fact:
+        multipath_storage_sn: "{{ storage_serial if (multipathing in ['Y','N'] and (result_multipath_y.results | default([]) | length > 0 if multipathing == 'Y' else result_multipath_n.results | default([]) | length > 0)) else 'UNKNOWN' }}"
+
+    - name: Initialize multipath_output_report as empty string
+      set_fact:
+        multipath_output_report: ""
+    - name: Prepare multipath output report
+      set_fact:
+        multipath_output_report: "{{ multipath_output_report }}\n{{ report_section }}"
+      vars:
+        report_section: |
+          {% for item in result_multipath_y.results %}
+          {{ item.invocation.module_args.spec.port }} [{{ item.invocation.module_args.spec.name }}, {{ item.invocation.module_args.spec.wwns[0].wwn }}]: {{ item.invocation.module_args.spec.ldevs }}
+          {% endfor %}
+      when: multipathing == "Y" and result_multipath_y is defined and (result_multipath_y.results | default([])) | length > 0
+
+    - name: Prepare non-multipath output report
+      set_fact:
+        multipath_output_report: "{{ multipath_output_report }}\n{{ report_section }}"
+      vars:
+        report_section: |
+          {% for item in result_multipath_n.results %}
+          {{ item.invocation.module_args.spec.port }} [{{ item.invocation.module_args.spec.name }}, {{ item.invocation.module_args.spec.wwns[0].wwn }}]: {{ item.invocation.module_args.spec.ldevs }}
+          {% endfor %}
+      when: multipathing == "N" and result_multipath_n is defined and (result_multipath_n.results | default([])) | length > 0
+    - name: Generate timestamp
+      set_fact:
+        report_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+
+    - name: Append multipath/non-multipath section to report
+      set_fact:
+        ldev_distribution_report: "{{ ldev_distribution_report }}\n\nSN: {{ multipath_storage_sn | trim }}\n==============\n{{ multipath_output_report | trim }}\n"
+    - name: Write LDEV Distribution Report to file
+      copy:
+        content: "{{ ldev_distribution_report }}"
+        dest: "/tmp/ldev_distribution_report_{{report_timestamp}}.txt"
+
+    - name: Inform user about report location
+      debug:
+        msg: "LDEV Distribution Report has been written to /tmp/ldev_distribution_report_{{report_timestamp}}.txt"
+

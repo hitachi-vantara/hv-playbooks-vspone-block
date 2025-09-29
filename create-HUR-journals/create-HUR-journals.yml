@@ -1,0 +1,143 @@
+---
+- name: Journal configuration for MCU and/or RCU
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+    unified_ldevs: >-
+      {%- set result = [] -%}
+      {%- set types = journal_ldev_config.storage.split(',') | map('trim') | list -%}
+      {%- set journal_ids = (range(journal_ldev_config.start_journal_id, journal_ldev_config.start_journal_id + journal_ldev_config.count) | list) -%}
+      {%- for type in types -%}
+        {%- set conn = connection_info if type == 'MCU' else secondary_connection_info -%}
+        {%- set type_key = type | lower + '_ldev' -%}
+        {%- for i in range(journal_ldev_config.count) -%}
+          {%- set ldev_id = journal_ldev_config.start_ldev_id + i -%}
+          {%- set journal_id = journal_ids[i] -%}
+          {%- set _ = result.append({
+            "ldev_id": ldev_id,
+            "type": type_key,
+            "journal_id": journal_id,
+            "pool_id": journal_ldev_config.pool_id,
+            "connection_info": conn
+          }) -%}
+        {%- endfor -%}
+      {%- endfor -%}
+      {{ result }}
+
+    journal_ids_mcu: >-
+      {{ unified_ldevs | selectattr('connection_info', 'equalto', connection_info) | map(attribute='journal_id') | list | unique | default([]) }}
+
+    journal_ids_rcu: >-
+      {{ unified_ldevs | selectattr('connection_info', 'equalto', secondary_connection_info) | map(attribute='journal_id') | list | unique | default([]) }}
+
+    journal_update_targets: >-
+      {{ journal_ids_mcu | product([connection_info]) | list + journal_ids_rcu | product([secondary_connection_info]) | list }}
+
+    journal_fact_targets: >-
+      {{ journal_ids_mcu | product([connection_info]) | list + journal_ids_rcu | product([secondary_connection_info]) | list }}
+
+    update_items: >-
+      {{ journal_update_targets | product(range(4) | list) | list }}
+
+  tasks:
+    - name: Create LDEVs for MCU and/or RCU
+      loop: "{{ unified_ldevs }}"
+      loop_control:
+        loop_var: ldev
+        label: "{{ ldev.type | upper }} - ldev_id={{ ldev.ldev_id }}"
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ ldev.connection_info }}"
+        state: present
+        spec:
+          ldev_id: "{{ ldev.ldev_id }}"
+          pool_id: "{{ ldev.pool_id }}"
+          size: "{{ default_size }}"
+          name: "{{ jnl_ldev_name_prefix }}_{{ ldev.ldev_id }}"
+      register: ldev_creation_result
+
+    - name: Define journal volumes
+      loop: "{{ unified_ldevs }}"
+      loop_control:
+        loop_var: ldev
+        label: "{{ ldev.type | upper }} - journal_id={{ ldev.journal_id }}, ldev_id={{ ldev.ldev_id }}"
+      hitachivantara.vspone_block.vsp.hv_journal_volume:
+        connection_info: "{{ ldev.connection_info }}"
+        state: "present"
+        spec:
+          journal_id: "{{ ldev.journal_id }}"
+          ldev_ids: ["{{ ldev.ldev_id }}"]
+      register: journal_creation_result
+
+    - name: Update journal volumes' mirror units with copy pace
+      loop: "{{ update_items }}"
+      loop_control:
+        label: "journal_id={{ item.0.0 }}, mirror_unit_number={{ item.1 }}"
+      hitachivantara.vspone_block.vsp.hv_journal_volume:
+        connection_info: "{{ item.0.1 }}"
+        state: "update"
+        spec:
+          journal_id: "{{ item.0.0 }}"
+          mirror_unit_number: "{{ item.1 }}"
+          copy_pace: "{{ journal_ldev_config.copy_pace_setting }}"
+
+    - name: Initialize journal report variable
+      set_fact:
+        journal_config_report: |
+          ===================== Journal Volume Creation Report ==================
+
+    - name: Gather journal facts for created journal_ids on both MCU and RCU
+      loop: "{{ journal_fact_targets }}"
+      loop_control:
+        label: "journal_id={{ item.0 }}"
+      hitachivantara.vspone_block.vsp.hv_journal_volume_facts:
+        connection_info: "{{ item.1 }}"
+        spec:
+          journal_id: "{{ item.0 }}"
+      register: journal_facts_result
+
+    - name: Append journal entry to report
+      set_fact:
+        journal_config_report: "{{ journal_config_report + '\n' + journal_entry }}"
+      vars:
+        journal_entry: |
+          SN: {{ storage_serial if item.item[1].address == storage_address else secondary_storage_serial if item.item[1].address == secondary_storage_address else 'UNKNOWN' }}
+          Journal ID: {{ item.ansible_facts.journal_volume.journal_pool_id }}
+          Journal Volume IDs: {{ item.ansible_facts.journal_volume.logical_unit_ids | join(', ') }}
+            Mirror Unit IDs and Copy Pace:
+            {% for mirror in item.ansible_facts.journal_volume.mirrors %}
+              - Mirror Unit ID: {{ mirror.mirror_unit_id }}, Copy Pace: {{ mirror.copy_pace }}
+            {% endfor %}
+      loop: "{{ journal_facts_result.results }}"
+      loop_control:
+        label: "journal_id={{ item.ansible_facts.journal_volume.journal_pool_id }}"
+
+    - name: Generate timestamp
+      set_fact:
+        report_timestamp: "{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}"
+    ####################################################################
+    # Task: Write Report to File
+    ####################################################################
+    - name: Write journal configuration report to file
+      copy:
+        content: "{{ journal_config_report }}"
+        dest: "/tmp/journal_config_report_{{ report_timestamp }}.txt"
+
+    - name: Inform user about the report file
+      debug:
+        msg: "The Journal Configuration Report has been written to /tmp/journal_config_report_{{ report_timestamp }}.txt"
+
