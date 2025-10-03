@@ -94,6 +94,16 @@ In enterprise-class environments, a large number of volumes are typically requir
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-data-volumes/Readme.md) for more info.
 
+## Playbook: [Create Host Groups and Map Data Volumes](map-data-volumes)
+This playbook accept parameters such as host WWPN, and P/S-Vol ports, total number of volumes and based on "multipathing" setting, the LDEVs will be distributed.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/map-data-volumes/Readme.md) for more info.
+
+## Playbook: [Create Journals for HUR](create-HUR-journals)
+This playbook automates the creation of DP volumes and configuration of journal groups based on user input. It first creates the LDEV and assigns a journal ID, then applies the desired copy pace setting. The playbook can be executed on both MCU and RCU systems, or on either one individually. Additionally, it generates a report listing the created journals along with their copy pace settings.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-HUR-journals/Readme.md) for more info.
+
 # **DISCLAIMER: **
 All materials provided in this repository, including but not limited to Ansible Playbooks and Terraform Configurations, are made available as a courtesy. These materials are intended solely as examples, which may be utilized in whole or in part. Neither the contributors nor the users of this platform assert or are granted any ownership rights over the content shared herein. It is the sole responsibility of the user to evaluate the appropriateness and applicability of the materials for their specific use case.
 Use of the material is at the sole risk of the user and the material is provided “AS IS,” without warranty, guarantees, or support of any kind, including, but not limited to, the implied warranties of merchantability, fitness for a particular purpose, and non-infringement. Unless specified in an applicable license, access to this material grants you no right or license, express or implied, statutorily or otherwise, under any patent, trade secret, copyright, or any other intellectual property right of Hitachi Vantara LLC (“HITACHI”). HITACHI reserves the right to change any material in this document, and any information and products on which this material is based, at any time, without notice. HITACHI shall have no responsibility or liability to any person or entity with respect to any damages, losses, or costs arising from the materials contained herein.
