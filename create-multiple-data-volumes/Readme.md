@@ -1,4 +1,4 @@
-# Ansible Playbook: Create Multiple Data Volumes With Host Paths
+# Ansible Playbook: Create Multiple Data Volumes
 # Overview
 An enterprise-class configuration typically requires a large number of volumes. The playbook, creates multiple volumes with specific parameters such as ADR, no-ADR, size, and naming.
 
