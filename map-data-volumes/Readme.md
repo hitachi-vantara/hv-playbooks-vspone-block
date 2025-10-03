@@ -1,4 +1,4 @@
-# Ansible Playbook: Create Multiple Data Volumes With Host Paths
+# Ansible Playbook: Create Host Groups and Map Data Volumes
 # Overview
 An enterprise-class configuration typically requires a large number of volumes, which must be mapped to the host as per requirements. The playbook creates host groups and map volumes using both multipath and single path configurations based on users choice.
 
