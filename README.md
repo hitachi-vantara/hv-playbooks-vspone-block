@@ -84,7 +84,10 @@ This script is highly effective and has been successfully used on other projects
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/HTIA_snapshotrestore/README.md) for more info.
 
+## Playbook: [Create Multiple Remote Paths](create-multiple-remote-paths)
+This playbook takes user inputs such as local/remote port pairs and remote path groups as variables, and dynamically applies them during execution. It also produces a consolidated report of all configured remote paths. This playbook is especially useful for setting up remote paths for HUR, GAD, and TC in large-scale environments.
 
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-remote-paths/Readme.md) for more info.
 
 # **DISCLAIMER: **
 All materials provided in this repository, including but not limited to Ansible Playbooks and Terraform Configurations, are made available as a courtesy. These materials are intended solely as examples, which may be utilized in whole or in part. Neither the contributors nor the users of this platform assert or are granted any ownership rights over the content shared herein. It is the sole responsibility of the user to evaluate the appropriateness and applicability of the materials for their specific use case.
