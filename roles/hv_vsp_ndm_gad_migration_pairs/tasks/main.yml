@@ -314,50 +314,56 @@
 # Task: Get available quorum disk IDs
 ####################################################################
 
-- name: Check if quorum disk already exists for secondary storage on primary
+- name: Check if quorum disk already exists for secondary storage on primary storage
   ansible.builtin.set_fact:
-    existing_primary_quorum_id: >-
+    existing_primary_quorum_ids: >-
       {{
         (primary_quorum_facts.ansible_facts.quorum_disk | default([])
         | selectattr('remote_serial_number', 'defined')
-        | selectattr('remote_serial_number', 'equalto', secondary_storage_serial)
+        | selectattr('remote_serial_number', 'equalto', secondary_storage_serial | string)
         | map(attribute='quorum_disk_id')
-        | list
-        | first) | default(None)
-      }}
-    existing_primary_quorum_obj: >-
-      {{
-      (primary_quorum_facts.ansible_facts.quorum_disk | default([])
-      | selectattr('remote_serial_number', 'defined')
-      | selectattr('remote_serial_number', 'equalto', secondary_storage_serial)
-      | list
-      | first) | default(None)
+        | list ) | default(None)
       }}
 
-- name: Set available_primary_quorum_id if existing_primary_quorum_id is found
+- name: Check if quorum disk already exists for primary storage on secondary storage
   ansible.builtin.set_fact:
-    available_primary_quorum_id: "{{ existing_primary_quorum_id }}"
-  when: existing_primary_quorum_id is not none
+    existing_secondary_quorum_ids: >-
+      {{
+        (secondary_quorum_facts.ansible_facts.quorum_disk | default([])
+        | selectattr('remote_serial_number', 'defined')
+        | selectattr('remote_serial_number', 'equalto', primary_storage_serial | string)
+        | map(attribute='quorum_disk_id')
+        | list ) | default(None)
+      }}
 
 - name: Set is_quorum_already_exists flag
   ansible.builtin.set_fact:
     is_quorum_already_exists: false
 
-- name: Set is_quorum_already_exists flag if matching quorum found on secondary
+- name: Find matching quorum disk pairs between primary and secondary storages
   ansible.builtin.set_fact:
-    is_quorum_already_exists: >-
-      {{ (secondary_quorum_facts.ansible_facts.quorum_disk | default([])
-         | selectattr('remote_serial_number', 'defined')
-         | selectattr('remote_serial_number', 'equalto', primary_storage_serial | string)
-         | selectattr('quorum_disk_id', 'equalto', existing_primary_quorum_id | int)
-         | list | length > 0) }}
-    rcu_quorum_disk_result: >-
-      {{ (secondary_quorum_facts.ansible_facts.quorum_disk | default([])
-         | selectattr('remote_serial_number', 'defined')
-         | selectattr('remote_serial_number', 'equalto', primary_storage_serial | string)
-         | selectattr('quorum_disk_id', 'equalto', existing_primary_quorum_id | int)
-         | list | first) | default(None) }}
-  when: existing_primary_quorum_id is not none
+    matching_quorum_ids: >-
+      {{
+        (existing_primary_quorum_ids | default([]) | intersect(existing_secondary_quorum_ids | default([])))
+      }}
+
+- name: Set is_quorum_already_exists flag based on matching quorum pairs
+  ansible.builtin.set_fact:
+    is_quorum_already_exists: "{{ matching_quorum_ids | length > 0 }}"
+
+- name: Use existing quorum disk ID if already exists
+  ansible.builtin.set_fact:
+    available_primary_quorum_id: "{{ matching_quorum_ids[0] }}"
+    available_secondary_quorum_id: "{{ matching_quorum_ids[0] }}"
+  when: is_quorum_already_exists | bool
+
+- name: Display existing quorum disk information
+  ansible.builtin.debug:
+    msg:
+      - "Existing quorum disks found between storages"
+      - "Matching quorum disk IDs: {{ matching_quorum_ids }}"
+      - "Using existing quorum disk ID: {{ matching_quorum_ids[0] }}"
+  when: is_quorum_already_exists | bool
 
 - name: Extract existing quorum disk IDs from primary storage
   ansible.builtin.set_fact:
@@ -642,7 +648,7 @@
     connection_info: "{{ connection_info }}"
     spec:
       remote_storage_serial_number: "{{ secondary_storage_serial }}"
-      id: "{{ available_primary_quorum_id }}"
+      id: "{{ quorum_disk_id }}"
       remote_storage_type: "{{ secondary_storage_type }}"
 
   register: mcu_quorum_disk_result
@@ -661,7 +667,7 @@
     spec:
       remote_storage_serial_number: "{{ primary_storage_serial }}"
       remote_storage_type: "{{ primary_storage_type }}"
-      id: "{{ available_secondary_quorum_id }}"
+      id: "{{ quorum_disk_id }}"
 
   register: rcu_quorum_disk_result
   when: is_quorum_already_exists is false
