@@ -91,8 +91,7 @@
     - item.lun_paths is defined
     - item.lun_paths | length > 0
     - (item.wwns | map(attribute='id') | list) | intersect(host_wwns) | length > 0
-  loop_control:
-    label: "{{ item.host_group_name | default('N/A') }} (HG ID: {{ item.host_group_id | default('N/A') }})"
+
 
 - name: Display host mode consistency check results
   ansible.builtin.debug:
