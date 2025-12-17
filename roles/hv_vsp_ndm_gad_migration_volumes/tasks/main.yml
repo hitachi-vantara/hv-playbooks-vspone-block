@@ -1,0 +1,221 @@
+---
+####################################################################
+# Role: hv_vsp_ndm_gad_migration_volumes
+# Description: Create GAD pairs with complete infrastructure setup
+####################################################################
+
+####################################################################
+# Task: Process input LDEVs from GAD status file
+####################################################################
+
+- name: Fail if gad_status_file is not defined
+  ansible.builtin.fail:
+    msg: "gad_status_file variable must be defined and point to a valid GAD status file."
+  when: gad_status_file is not defined
+
+- name: Load GAD status file
+  ansible.builtin.slurp:
+    src: "{{ gad_status_file }}"
+  register: gad_status_file_content
+  ignore_errors: true
+
+- name: Fail if unable to open GAD status file
+  ansible.builtin.fail:
+    msg: "Failed to open gad_status_file: {{ gad_status_file }}"
+  when:
+    - gad_status_file_content is failed or gad_status_file_content is not defined
+
+- name: Parse GAD status JSON
+  ansible.builtin.set_fact:
+    gad_status_file_data: "{{ gad_status_file_content.content | b64decode | from_json }}"
+  when:
+    - gad_status_file is defined
+    - gad_status_file_content is defined
+    - gad_status_file_content is not failed
+
+- name: Fail if GAD status JSON parsing failed
+  ansible.builtin.fail:
+    msg: "Failed to parse GAD status file as JSON. Check file content and format."
+  when:
+    - gad_status_file_data is not defined
+
+- name: Extract LDEV IDs from gad_pairs in GAD status file
+  ansible.builtin.set_fact:
+    extracted_ldev_ids: "{{ gad_status_file_data.gad_migration_pair_info.gad_pairs | map(attribute='pvol_ldev_id') | unique | list }}"
+
+  when:
+    - gad_status_file_data.gad_migration_pair_info.gad_pairs is defined
+    - gad_status_file_data.gad_migration_pair_info.gad_pairs | length > 0
+
+- name: Transform extracted LDEV IDs to new_ldevs format
+  ansible.builtin.set_fact:
+    new_ldevs: "{{ extracted_ldev_ids | map('regex_replace', '^(.*)$', '{ \"item\": \\1 }') | map('from_json') | list }}"
+  when:
+    - extracted_ldev_ids is defined
+    - extracted_ldev_ids | length > 0
+
+- name: Validate LDEV input
+  ansible.builtin.assert:
+    that:
+      - new_ldevs is defined
+      - new_ldevs | length > 0
+    fail_msg: "No LDEVs provided for GAD pair creation. Ensure gad_status_file contains valid gad_pairs with primary_volume_id."
+####################################################################
+
+####################################################################
+# Task: Get all GAD pair information for status tracking
+####################################################################
+- name: Get GAD pair by copy group name and copy pair name
+  hitachivantara.vspone_block.vsp.hv_gad_facts:
+    secondary_connection_info: "{{ secondary_connection_info }}"
+    connection_info: "{{ connection_info }}"
+    spec:
+      copy_group_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_group_name }}"
+      copy_pair_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_pair_name_prefix }}{{ item }}"
+
+  loop: "{{ new_ldevs | map(attribute='item') | list }}"
+  loop_control:
+    label: "{{ item }}"
+  register: gad_pair_results
+  when: new_ldevs | length > 0
+
+- name: Debug GAD pair creation results
+  ansible.builtin.debug:
+    var: gad_pair_results
+  when: new_ldevs | length > 0
+
+- name: Filter existing GAD pairs and identify missing LDEVs
+  ansible.builtin.set_fact:
+    existing_gad_pairs: "{{ gad_pair_results.results | selectattr('ansible_facts', 'defined') | selectattr('ansible_facts.gad_pair', 'defined') | selectattr('ansible_facts.gad_pair',
+      '!=', []) | list }}"
+    missing_ldev_ids: "{{ new_ldevs | map(attribute='item') | list | difference(gad_pair_results.results | selectattr('ansible_facts', 'defined') | selectattr('ansible_facts.gad_pair',
+      'defined') | selectattr('ansible_facts.gad_pair', '!=', []) | map(attribute='ansible_facts.gad_pair') | flatten | map(attribute='primary_volume_id') | list)
+      }}"
+  when: gad_pair_results is defined
+
+- name: Display GAD pair filtering results
+  ansible.builtin.debug:
+    msg:
+      - "=== GAD Pair Status ==="
+      - "Existing GAD pairs found: {{ existing_gad_pairs | length if existing_gad_pairs is defined else 0 }}"
+      - "Missing LDEV IDs (to be skipped): {{ missing_ldev_ids | default([]) }}"
+      - "LDEVs with existing GAD pairs: {{ existing_gad_pairs | map(attribute='ansible_facts.gad_pair') | flatten | map(attribute='primary_volume_id') | list if existing_gad_pairs
+        is defined else [] }}"
+
+- name: Process only LDEVs with existing GAD pairs
+  ansible.builtin.set_fact:
+    ldevs_to_process: "{{ new_ldevs | selectattr('item', 'in', existing_gad_pairs | map(attribute='ansible_facts.gad_pair') | flatten | map(attribute='primary_volume_id')
+      | list) | list }}"
+  when:
+    - existing_gad_pairs is defined
+    - existing_gad_pairs | length > 0
+###################################################################
+# swap-split gad pairs non-destructively
+###################################################################
+
+- name: Migrate GAD pairs non-destructively
+  hitachivantara.vspone_block.vsp.hv_gad:
+    secondary_connection_info: "{{ connection_info }}"
+    connection_info: "{{ secondary_connection_info }}"
+    state: swap_split
+    spec:
+      copy_group_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_group_name }}"
+      copy_pair_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_pair_name_prefix }}{{ item }}"
+
+  loop: "{{ existing_gad_pairs | map(attribute='item') | list }}"
+  loop_control:
+    label: "{{ item }}"
+  register: gad_pair_results
+  when: existing_gad_pairs | length > 0
+
+- name: Debug GAD pair creation results
+  ansible.builtin.debug:
+    var: gad_pair_results
+  when: existing_gad_pairs | length > 0
+
+###################################################################
+# Swap and Resync GAD pairs non-destructively
+###################################################################
+
+- name: Swap and Resync GAD pairs non-destructively
+  hitachivantara.vspone_block.vsp.hv_gad:
+    secondary_connection_info: "{{ connection_info }}"
+    connection_info: "{{ secondary_connection_info }}"
+    state: swap_resync
+    spec:
+      copy_group_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_group_name }}"
+      copy_pair_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_pair_name_prefix }}{{ item }}"
+
+  loop: "{{ existing_gad_pairs | map(attribute='item') | list }}"
+  loop_control:
+    label: "{{ item }}"
+  register: gad_pair_results
+  when: existing_gad_pairs | length > 0
+
+- name: Debug GAD pair creation results
+  ansible.builtin.debug:
+    var: gad_pair_results
+  when: existing_gad_pairs | length > 0
+
+###################################################################
+# Delete the migrated gad pairs from source system
+###################################################################
+
+- name: Delete migrated GAD pairs from source system
+  hitachivantara.vspone_block.vsp.hv_gad:
+    secondary_connection_info: "{{ secondary_connection_info }}"
+    connection_info: "{{ connection_info }}"
+    state: absent
+    spec:
+      copy_group_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_group_name }}"
+      copy_pair_name: "{{ hv_vsp_ndm_gad_migration_volumes_copy_pair_name_prefix }}{{ item }}"
+
+  loop: "{{ existing_gad_pairs | map(attribute='item') | list }}"
+  loop_control:
+    label: "{{ item }}"
+  register: gad_pair_deletion_results
+  when: existing_gad_pairs | length > 0
+
+- name: Debug GAD pair deletion results
+  ansible.builtin.debug:
+    var: gad_pair_deletion_results
+  when: existing_gad_pairs | length > 0
+
+####################################################################
+# Task: Generate comprehensive GAD pair migration report
+####################################################################
+- name: Generate GAD pair migration report
+  ansible.builtin.set_fact:
+    gad_migration_report:
+      migration_summary:
+        total_ldevs_requested: "{{ new_ldevs | length if new_ldevs is defined else 0 }}"
+        existing_gad_pairs_found: "{{ existing_gad_pairs | length if existing_gad_pairs is defined else 0 }}"
+        missing_ldev_ids: "{{ missing_ldev_ids | default([]) }}"
+        successfully_migrated: "{{ gad_pair_results.results | selectattr('changed', 'equalto', true) | list | length if gad_pair_results is defined else 0 }}"
+        migration_failures: "{{ gad_pair_results.results | selectattr('failed', 'defined') | selectattr('failed', 'equalto', true) | list | length if gad_pair_results
+          is defined else 0 }}"
+      detailed_results:
+        processed_ldevs: "{{ existing_gad_pairs | map(attribute='ansible_facts.gad_pair') | flatten | map(attribute='primary_volume_id') | list if existing_gad_pairs
+          is defined else [] }}"
+        migration_status: "{{ gad_pair_results.results | default([]) }}"
+        deletion_status: "{{ gad_pair_deletion_results.results | default([]) }}"
+        timestamp: "{{ now(utc=true, fmt='%Y-%m-%dT%H:%M:%SZ') }}"
+
+- name: Display GAD pair migration report
+  ansible.builtin.debug:
+    msg:
+      - "=== GAD PAIR MIGRATION REPORT ==="
+      - "Copy Group: {{ hv_vsp_ndm_gad_migration_volumes_copy_group_name }}"
+      - "Total LDEVs Requested: {{ gad_migration_report.migration_summary.total_ldevs_requested }}"
+      - "Existing GAD Pairs Found: {{ gad_migration_report.migration_summary.existing_gad_pairs_found }}"
+      - "Successfully Migrated: {{ gad_migration_report.migration_summary.successfully_migrated }}"
+      - "Migration Failures: {{ gad_migration_report.migration_summary.migration_failures }}"
+      - "Swap-Split Status: {{ gad_pair_results.results | selectattr('changed', 'equalto', true) | list | length if gad_pair_results is defined else 0 }} successful"
+      - "Swap-Resync Status: {{ gad_pair_results.results | selectattr('changed', 'equalto', true) | list | length if gad_pair_results is defined else 0 }} successful"
+      - "Deleted GAD Pairs: {{ gad_migration_report.detailed_results.deletion_status | selectattr('changed', 'equalto', true) | list | length if gad_migration_report.detailed_results.deletion_status
+        is defined else 0 }}"
+      - "Missing LDEVs (Skipped): {{ gad_migration_report.migration_summary.missing_ldev_ids | join(', ') if gad_migration_report.migration_summary.missing_ldev_ids
+        | length > 0 else 'None' }}"
+      - "Processed LDEVs: {{ gad_migration_report.detailed_results.processed_ldevs | join(', ') if gad_migration_report.detailed_results.processed_ldevs | length
+        > 0 else 'None' }}"
+      - "Report Generated: {{ gad_migration_report.detailed_results.timestamp }}"
