@@ -1,0 +1,70 @@
+---
+####################################################################
+# Quorum Disk Registration - Primary & Secondary 
+####################################################################
+- name: Quorum Disk Registration (Primary)
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task: Register Quorum Disk (Primary)
+    ####################################################################
+    - name: Register Quorum Disk on Primary
+      hitachivantara.vspone_block.vsp.hv_quorum_disk:
+        connection_info: "{{ connection_info }}"
+        spec:
+          remote_storage_serial_number: 810005
+          remote_storage_type: M8
+          ldev_id: 30
+          id: 4
+      register: primary_result
+
+    - name: Debug (Primary)
+      ansible.builtin.debug:
+        var: primary_result
+
+
+####################################################################
+# Secondary Section (Same Playbook, No Loops)
+####################################################################
+- name: Quorum Disk Registration (Secondary)
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6831.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task: Register Quorum Disk (Secondary)
+    ####################################################################
+    - name: Register Quorum Disk on Secondary
+      hitachivantara.vspone_block.vsp.hv_quorum_disk:
+        connection_info: "{{ connection_info }}"
+        spec:
+          remote_storage_serial_number: 810003
+          remote_storage_type: M8
+          ldev_id: 141
+          id: 4
+      register: secondary_result
+
+    - name: Debug (Secondary)
+      ansible.builtin.debug:
+        var: secondary_result
+

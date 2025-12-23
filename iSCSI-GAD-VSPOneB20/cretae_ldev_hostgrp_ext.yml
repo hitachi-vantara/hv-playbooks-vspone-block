@@ -1,0 +1,77 @@
+---
+####################################################################
+# Create LDEV and create hostgroup with this LDEV
+####################################################################
+- name: Create LDEV and Host group
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_65104.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    #########################################################################
+    # Task: Create LDEV (auto free LDEV selection)
+    #########################################################################
+    - name: Create ldev using parity group and auto free ldev id selection
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          parity_group: "1-1"
+          size: "80GB"
+          name: "quoram"
+      register: result_create_ldev
+
+    - name: Debug LDEV result
+      ansible.builtin.debug:
+        var: result_create_ldev
+
+    #######################################################################
+    # Task: Create Hostgroup (Secondary Storage)
+    #######################################################################
+    - name: Create hostgroup (secondary)
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          name: "hostgroup-qrm"
+          port: "CL6-C"
+          host_mode: "WINDOWS_EXTENSION"
+          ldevs: ["{{ result_create_ldev['volume']['ldev_id'] | int }}"]
+          wwns:
+            - wwn: "50060e8028271551"
+              nick_name: "Sec_storage"
+      register: result_hg_sec
+
+    - name: Debug secondary hostgroup result
+      ansible.builtin.debug:
+        var: result_hg_sec
+
+    #######################################################################
+    # Task: Create Hostgroup (Primary Storage)
+    #######################################################################
+    - name: Create hostgroup (primary)
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          name: "hostgroup-qrm"
+          port: "CL5-C"
+          host_mode: "WINDOWS_EXTENSION"
+          ldevs: ["{{ result_create_ldev['volume']['ldev_id'] | int }}"]
+          wwns:
+            - wwn: "50060e8028271332"
+              nick_name: "Pri_storage"
+      register: result_hg_pri
+
+    - name: Debug primary hostgroup result
+      ansible.builtin.debug:
+        var: result_hg_pri
