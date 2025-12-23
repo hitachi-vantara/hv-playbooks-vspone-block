@@ -1,0 +1,68 @@
+---
+####################################################################
+# External Volume Addition – Primary Storage (6827)
+####################################################################
+- name: Add External Volume on Primary Storage
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827.yml
+
+  vars:
+    # Primary storage connection details
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Step 1: Add External Volume (Primary)
+    ####################################################################
+    - name: Add External Volume on Primary
+      hitachivantara.vspone_block.vsp.hv_external_volume:
+        connection_info: "{{ connection_info }}"
+        spec:
+          external_storage_serial: "415045"
+          external_ldev_id: 146
+      register: primary_result
+
+    - name: Display Primary Storage External Volume addition Output
+      ansible.builtin.debug:
+        var: primary_result
+
+
+
+####################################################################
+# External Volume Addition – Secondary Storage (6831)
+####################################################################
+- name: Add External Volume on Secondary Storage
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6831.yml
+
+  vars:
+    # Secondary storage connection details
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Step 2: Add External Volume (Secondary)
+    ####################################################################
+    - name: Add External Volume on Secondary
+      hitachivantara.vspone_block.vsp.hv_external_volume:
+        connection_info: "{{ connection_info }}"
+        spec:
+          external_storage_serial: "415045"
+          external_ldev_id: 146
+      register: secondary_result
+
+    - name: Display Secondary Storage External Volume addition Output
+      ansible.builtin.debug:
+        var: secondary_result

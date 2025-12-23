@@ -1,0 +1,43 @@
+---
+####################################################################
+# Example :  Get pool and parity group of the storage
+####################################################################
+- name: Retrieves Pool ind parity group nformation from storage
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get all storage pools of the storage
+    ####################################################################
+    - name: Get all storage pools of the storage
+      hitachivantara.vspone_block.vsp.hv_storagepool_facts:
+        connection_info: "{{ connection_info }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+    ####################################################################
+    # Task Name : Get all paritygroups of the storage
+    ####################################################################
+    - name: Get all paritygroups of the storage
+      hitachivantara.vspone_block.vsp.hv_paritygroup_facts:
+        connection_info: "{{ connection_info }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
