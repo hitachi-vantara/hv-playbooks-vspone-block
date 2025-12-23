@@ -34,17 +34,15 @@ The configuration was completed by executing the following tasks, with the corre
 
 **Create iSCSI GAD Pair:** Create the active-active iSCSI GAD pair between the primary and secondary storage systems using gad_pair_iscsi.yml.
 
-Run and Troubleshoot ansible playbooks
-###Execute a playbook task using this command syntax:
+## Run and Troubleshoot ansible playbooks
 
-ansible-playbook <name of the yml file>
+###Execute a playbook task using this command syntax:
+>ansible-playbook &lt;name of the yml file&gt;
 
 ###To get detailed output, run the playbook with verbose mode using the following syntax:
-
-ansible-playbook <name of the yml file> -vvv
+>ansible-playbook &lt;name of the yml file&gt; -vvv
 
 ###To troubleshoot issues, refer to the log file located at:
-
-$HOME/logs/hitachivantara/ansible/vspone_block/hv_vspone_block_modules.log
-$HOME/logs/hitachivantara/ansible/vspone_block/hv_vspone_block_audit.log
+>$HOME/logs/hitachivantara/ansible/vspone_block/hv_vspone_block_modules.log
+>$HOME/logs/hitachivantara/ansible/vspone_block/hv_vspone_block_audit.log
 
