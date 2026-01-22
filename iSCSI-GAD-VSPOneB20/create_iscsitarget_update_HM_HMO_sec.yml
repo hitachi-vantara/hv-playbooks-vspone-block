@@ -1,0 +1,54 @@
+- name: Configure iSCSI Target on VSP One
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6831.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################################
+    # Task 1 : Create iSCSI target with host IQN
+    ####################################################################################
+    - name: Create iSCSI target and map host IQN
+      hitachivantara.vspone_block.vsp.hv_iscsi_target:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          name: "iscsi-GAD-server"
+          port: "CL1-C"
+          iqn_initiators:
+            - iqn: "iqn.1998-01.com.vmware:localhost:138384595:66"
+              nick_name: "iscsi-GAD"
+#          chap_users:
+#            - chap_user_name: "user1"
+#              chap_secret: "CHANGE_ME_SET_YOUR_PASSWORD"
+      register: iscsi_target_create
+
+    - name: Debug iSCSI target creation result
+      ansible.builtin.debug:
+        var: iscsi_target_create
+
+    ####################################################################################
+    # Task 2 : Update iSCSI target host mode and host mode options
+    ####################################################################################
+    - name: Update iSCSI target host mode and options
+      hitachivantara.vspone_block.vsp.hv_iscsi_target:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          name: "iscsi-GAD-server"
+          port: "CL1-C"
+          host_mode: "VMWARE_EXTENSION"
+          host_mode_options: [54, 63, 68, 114]
+      register: iscsi_target_update
+
+    - name: Debug iSCSI target update result
+      ansible.builtin.debug:
+        var: iscsi_target_update

@@ -1,0 +1,74 @@
+---
+####################################################################
+# Example: Get Free LDEV IDs for Primary and Secondary Storage
+####################################################################
+
+- name: Get Free LDEV IDs - Primary Storage
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827.yml
+
+  vars:
+    # Connection details for primary storage
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get Free LDEV IDs (Primary Storage)
+    ####################################################################
+    - name: Retrieve Free LDEV IDs from Primary Storage
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          query:
+            - free_ldev_id
+          start_ldev_id: 3000
+          count: 20
+      register: result_primary
+
+    - name: Display Free LDEV IDs for Primary Storage
+      ansible.builtin.debug:
+        var: result_primary
+
+
+####################################################################
+# Secondary Storage Section
+####################################################################
+- name: Get Free LDEV IDs - Secondary Storage
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6831.yml
+
+  vars:
+    # Connection details for secondary storage
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get Free LDEV IDs (Secondary Storage)
+    ####################################################################
+    - name: Retrieve Free LDEV IDs from Secondary Storage
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          query:
+            - free_ldev_id
+          start_ldev_id: 3000
+          count: 20
+      register: result_secondary
+
+    - name: Display Free LDEV IDs for Secondary Storage
+      ansible.builtin.debug:
+        var: result_secondary
