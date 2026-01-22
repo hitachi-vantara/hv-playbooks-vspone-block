@@ -1,0 +1,73 @@
+---
+####################################################################
+# Example : Remote connection between iSCSI ports
+#
+# This playbook creates an iSCSI-based remote connection between
+# primary and secondary storage systems.
+#
+# Steps performed:
+# 1. Register local and remote iSCSI ports required for connectivity
+# 2. Create the remote connection using the registered iSCSI ports
+####################################################################
+
+- name: Remote Connection creation using iSCSI ports
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827.yml
+
+  vars:
+    # Common connection information used by all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ##################################################################
+    # Example Task : Register iSCSI ports
+    #
+    # Registers the local and remote iSCSI ports so they can be used
+    # for creating a remote connection between the storage systems.
+    ##################################################################
+    - name: Register iSCSI ports
+      hitachivantara.vspone_block.vsp.hv_iscsi_remote_connection:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          local_port: CL4-D
+          remote_port: CL4-C
+          remote_storage_serial_number: 810005
+          remote_storage_ip_address: "192.168.26.101"
+          remote_tcp_port: 3260
+      register: result
+
+    - name: Debug result
+      ansible.builtin.debug:
+        var: result
+
+    ##################################################################
+    # Example Task : Create remote connection
+    #
+    # Creates the remote connection using the previously registered
+    # iSCSI ports and establishes the remote communication path.
+    ##################################################################
+    - name: Create remote connection
+      hitachivantara.vspone_block.vsp.hv_remote_connection:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          path_group_id: 0
+          remote_storage_serial_number: "810005"
+          remote_paths:
+            - local_port: "CL4-D"
+              remote_port: "CL4-C"
+          min_remote_paths: 1
+          remote_io_timeout_in_sec: 15
+          round_trip_in_msec: 1
+      register: result
+
+    - name: Debug result
+      ansible.builtin.debug:
+        var: result

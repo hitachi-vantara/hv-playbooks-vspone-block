@@ -1,0 +1,54 @@
+---
+########################################################################################
+# Playbook : Configure VSP One iSCSI Port
+# Description : Configures iSCSI port with detailed settings and displays the results.
+########################################################################################
+- name: Configure VSP One iSCSI Port
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################################
+    # Task: Configure iSCSI Port
+    ####################################################################################
+    - name: Configure iSCSI port with comprehensive settings
+      hitachivantara.vspone_block.vsp.hv_vsp_one_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port_id: "CL2-D"
+          port_speed_in_gbps: 25
+          enable_port_security: true
+          iscsi_settings:
+            ip_mode: "ipv4v6"
+            ipv4_configuration:
+              address: "192.168.25.15"
+              subnet_mask: "255.255.255.0"
+              default_gateway: "0.0.0.0"
+#            ipv6_configuration:
+#              linklocal: "fe80::2"
+#              global: "2001:db8::10"
+#              default_gateway: "2001:db8::1"
+#            enable_vlan_use: true
+#            add_vlan_id: 100
+#            tcp_port: 3260
+#            enable_selective_ack: true
+#            enable_delayed_ack: false
+#            window_size: "NUMBER_256K"
+#            mtu_size: "NUMBER_9000"
+#            keep_alive_timer: 300
+#            enable_isns_server_mode: true
+#            isns_server_ip_address: "192.168.1.200"
+#            isns_server_port: 3205
+      register: port_config_result
+    - name: Display iSCSI port configuration result
+      ansible.builtin.debug:
+        var: port_config_result
