@@ -114,7 +114,7 @@ See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blo
 ## Playbook: [ndm_gad_playbooks ](ndm_gad_playbooks )
 
 This directory contains Ansible playbooks for implementing complete storage migration workflows using Hitachi VSP One Block's Global Active Device (GAD) technology with Non-Disruptive Migration (NDM) capabilities.
-# Roles: [roles ](roles )
+### Roles: [roles ](roles )
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/ndm_gad_playbooks/README.md) for more info.
 
