@@ -1,0 +1,50 @@
+# -----------------------------------------------------------
+# Service Account for HSPC iSCSI Init DaemonSet
+# -----------------------------------------------------------
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: hspc-csi-sa
+  namespace: kube-system
+
+---
+# -----------------------------------------------------------
+# RBAC: ClusterRole
+# -----------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRole
+metadata:
+  name: hspc-csi-init-role
+rules:
+  - apiGroups: ["*"]
+    resources: ["nodes", "nodes/proxy"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: [""]
+    resources: ["pods", "pods/log"]
+    verbs: ["get", "list", "watch"]
+
+  - apiGroups: [""]
+    resources: ["secrets"]
+    verbs: ["get", "list"]
+
+  - apiGroups: [""]
+    resources: ["events"]
+    verbs: ["create", "patch", "update"]
+
+---
+# -----------------------------------------------------------
+# RBAC: ClusterRoleBinding
+# -----------------------------------------------------------
+apiVersion: rbac.authorization.k8s.io/v1
+kind: ClusterRoleBinding
+metadata:
+  name: hspc-csi-init-rolebinding
+subjects:
+  - kind: ServiceAccount
+    name: hspc-csi-sa
+    namespace: kube-system
+roleRef:
+  kind: ClusterRole
+  name: hspc-csi-init-role
+  apiGroup: rbac.authorization.k8s.io

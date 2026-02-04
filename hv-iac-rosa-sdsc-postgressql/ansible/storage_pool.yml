@@ -1,0 +1,53 @@
+####################################################################
+# Example : SDSB - Get Drives and Expand Storage Pool (Final Merged)
+####################################################################
+- name: Get Drives and Expand Storage Pool
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - ../ansible/storage_var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get all Drives
+    ####################################################################
+    - name: Get all drives from SDS Block system
+      hitachivantara.vspone_block.sds_block.hv_sds_block_drives_facts:
+        connection_info: "{{ connection_info }}"
+      register: drive_facts
+
+    - name: Show total drives discovered
+      ansible.builtin.debug:
+        msg: "Total drives found: {{ drive_facts.ansible_facts.drives.data | length }}"
+
+    - name: Show all Drive IDs
+      ansible.builtin.debug:
+        msg: "{{ item.id }}"
+      loop: "{{ drive_facts.ansible_facts.drives.data }}"
+      when: drive_facts.ansible_facts.drives.data is defined
+
+    ####################################################################
+    # Task Name : Expand storage pool SP01 using all collected IDs
+    ####################################################################
+    - name: Expand storage pool SP01 using all collected drive IDs
+      hitachivantara.vspone_block.sds_block.hv_sds_block_storage_pool:
+        connection_info: "{{ connection_info }}"
+        state: expand
+        spec:
+          name: "StoragePool01"
+          drive_ids: "{{ drive_facts.ansible_facts.drives.data | map(attribute='id') | list }}"
+      register: expand_result
+      when: drive_facts.ansible_facts.drives.data | length > 0
+
+    - name: Debug expand result
+      ansible.builtin.debug:
+        var: expand_result
+      when: drive_facts.ansible_facts.drives.data | length > 0

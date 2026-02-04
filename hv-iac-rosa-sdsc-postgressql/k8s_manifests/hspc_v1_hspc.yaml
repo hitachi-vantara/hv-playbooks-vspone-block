@@ -1,0 +1,16 @@
+apiVersion: csi.hitachi.com/v1
+kind: HSPC
+metadata:
+  name: hspc
+  namespace: default     # your namespace, not kube-system
+spec:
+  imagePullSecrets:
+    - hitachi-registry-secret   # if required for private registry (optional)
+  storageSystems:
+    - name: sdsblock
+      managementServer:
+        url: https://vsponesdsblock-pi-8-elb-9813d189474b45f7.elb.us-west-2.amazonaws.com
+        username: admin
+        password: NTest@123
+      storageType: sdsblock
+      connectionType: iscsi
