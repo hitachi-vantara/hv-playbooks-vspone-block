@@ -117,6 +117,27 @@ This directory contains Ansible playbooks for implementing complete storage migr
 ### Roles: [roles ](roles )
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/ndm_gad_playbooks/README.md) for more info.
+## Playbook: [iSCSI GAD Pair Configuration](iSCSI-GAD-VSPOneB20)
+These Ansible playbooks are customized to automate the configuration of iSCSI-based GAD pairs, ensuring consistent, efficient, and reliable deployment of active-active volume replication across the connected Hitachi VSP One primary and secondary storage systems.
+
+_The setup was completed by executing a series of Ansible playbooks for the following tasks:_
+- Get DP Pool & Parity Group
+- Get Free LDEV IDs
+- DP Pool & DRS Volume Creation (Primary)
+- Get Storage Port Info
+- Configure iSCSI Port
+- Create iSCSI Target & Update Host Mode (Primary)
+- DP Pool Creation (Secondary)
+- Create iSCSI Target & Update Host Mode (Secondary)
+- Create Resource Group & Reserve iSCSI Target
+- Register Remote Storage
+- Create iSCSI Remote Connection
+- Create External Volume, Host Group & Mapping
+- External Volume Addition
+- Quorum Disk Registration
+- Create iSCSI GAD Pair
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/iSCSI-GAD-VSPOneB20/Readme.md) for more info.
 
 # **DISCLAIMER: **
 All materials provided in this repository, including but not limited to Ansible Playbooks and Terraform Configurations, are made available as a courtesy. These materials are intended solely as examples, which may be utilized in whole or in part. Neither the contributors nor the users of this platform assert or are granted any ownership rights over the content shared herein. It is the sole responsibility of the user to evaluate the appropriateness and applicability of the materials for their specific use case.
