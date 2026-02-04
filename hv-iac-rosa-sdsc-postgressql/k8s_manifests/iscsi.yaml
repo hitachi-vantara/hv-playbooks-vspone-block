@@ -1,0 +1,66 @@
+apiVersion: apps/v1
+kind: DaemonSet
+metadata:
+  name: hspc-iscsi-init
+  namespace: kube-system
+  labels:
+    app: hspc-iscsi-init
+spec:
+  selector:
+    matchLabels:
+      app: hspc-iscsi-init
+  template:
+    metadata:
+      labels:
+        app: hspc-iscsi-init
+    spec:
+      hostPID: true
+      hostNetwork: true
+      serviceAccountName: hspc-csi-sa
+      initContainers:
+        - name: init-iscsi
+          image: registry.access.redhat.com/ubi9/ubi-minimal
+          securityContext:
+            privileged: true
+          command:
+            - /bin/bash
+            - -c
+          args:
+            - |
+              echo "=== Configuring iSCSI & Multipath on Host ==="
+              # Create initiator name
+              if [ ! -f /host/etc/iscsi/initiatorname.iscsi ]; then
+                echo "Creating initiatorname.iscsi..."
+                echo "InitiatorName=iqn.1994-05.com.redhat:$(hostname)" > /host/etc/iscsi/initiatorname.iscsi
+              fi
+              # Fix scan mode
+              sed -i 's/^node.session.scan.*/node.session.scan = manual/' /host/etc/iscsi/iscsid.conf
+              # Write multipath.conf (safe heredoc)
+              cat << 'EOF' > /host/etc/multipath.conf
+              defaults {
+                user_friendly_names yes
+                find_multipaths yes
+              }
+              blacklist {
+                device {
+                  vendor "NVME"
+                  product "Amazon Elastic Block Store"
+                }
+              }
+              EOF
+              # Restart/enable system services
+              chroot /host systemctl enable --now iscsid || true
+              chroot /host systemctl enable --now iscsi || true
+              chroot /host systemctl enable --now multipathd || true
+          volumeMounts:
+            - name: host
+              mountPath: /host
+      containers:
+        - name: pause
+          image: registry.k8s.io/pause:3.2
+      volumes:
+        - name: host
+          hostPath:
+            path: /
+            type: Directory
+  
