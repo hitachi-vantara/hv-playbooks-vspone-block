@@ -834,7 +834,7 @@ resource "null_resource" "run_ansible_expand_pool" {
       echo "Running Ansible playbook to expand storage pool..."
       ansible-playbook ./ansible/storage_pool.yml \
         -i localhost, \
-        --extra-vars "storage_address=${data.aws_lb.lb.dns_name} storage_username=admin storage_password=NTest@123"
+        --extra-vars "storage_address=${data.aws_lb.lb.dns_name} storage_username=admin storage_password=var.sds_new_password"
     EOT
   }
 }
