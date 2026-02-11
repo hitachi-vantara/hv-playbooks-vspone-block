@@ -83,6 +83,38 @@ On the Terraform/Ansible Dev VM (Amazon Linux 2023 recommended):
 
 The reference guide includes an example Dev VM baseline and tooling list.
 
+## Configuration (Required)
+
+### Update Terraform variables (`terraform.tfvars`)
+
+Open your **`terraform.tfvars`** file and update the below fields:
+
+> **ROSA Login Credentials**
+- **`admin_password`**  
+  *(Used to set the ROSA cluster login credentials)*
+
+> **SDS Credentials**
+- **`sds_new_password`**  
+  *(Set the new password for SDSC / SDS Block)*
+- **`sds_default_password`**  
+  *(Provide the current/default password for SDSC / SDS Block — used for password rotation/initial login)*
+
+---
+
+### 2) Update HSPC manifest password (`k8s_manifests/hspc_v1_hspc.yaml`)
+
+Go to the **`k8s_manifests/`** directory and open:
+
+- **`hspc_v1_hspc.yaml`**
+
+In that file, fill the Hitachi SDSC storage login password using the **same value** you provided in **`sds_new_password`**:
+
+✅ **Set:**
+- `password:` **<use `sds_new_password` value>**
+
+ Example: password: "<same value as sds_new_password>"
+
+
 Configuration
     Update terraform.tfvars with your environment values:
 

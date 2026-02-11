@@ -11,6 +11,6 @@ spec:
       managementServer:
         url: https://vsponesdsblock-pi-8-elb-9813d189474b45f7.elb.us-west-2.amazonaws.com
         username: admin
-        password: NTest@123
+        password: 
       storageType: sdsblock
       connectionType: iscsi

@@ -40,7 +40,7 @@ rosa_subnet_cidr = "XX.XX.XX.XX/X"
 
 #SDS Credentials 
 sds_admin_username = "admin"
-sds_new_password   = "NTest@123"
+sds_new_password   = "xxxxx"
 sds_default_password = "hsds-admin"
 
 
@@ -55,7 +55,7 @@ account_role_prefix = "pi-my-rosa-account"
 operator_role_prefix = "pi-my-rosa-hcp"
 aws_subnet_ids     = ["subnet-04-xxxx"] # Replace with your private subnet IDs
 private            = true
-admin_password     = "Testrosa@123456789" # Replace with a secure password
+admin_password     = "xxxxx" # Replace with a secure password
 pod_cidr           = "10.128.0.0/14"
 service_cidr       = "172.30.0.0/16"
 machine_cidr       = "X.X.X.X/X"
