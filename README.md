@@ -111,6 +111,12 @@ This playbook was created to automate the configuration of FC GAD pairs, ensurin
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/GAD-FC-E2E%20/README.md) for more info.
 
+## Playbook: [ndm_gad_playbooks ](ndm_gad_playbooks )
+
+This directory contains Ansible playbooks for implementing complete storage migration workflows using Hitachi VSP One Block's Global Active Device (GAD) technology with Non-Disruptive Migration (NDM) capabilities.
+### Roles: [roles ](roles )
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/ndm_gad_playbooks/README.md) for more info.
 ## Playbook: [iSCSI GAD Pair Configuration](iSCSI-GAD-VSPOneB20)
 These Ansible playbooks are customized to automate the configuration of iSCSI-based GAD pairs, ensuring consistent, efficient, and reliable deployment of active-active volume replication across the connected Hitachi VSP One primary and secondary storage systems.
 
