@@ -1,0 +1,39 @@
+---
+- name: Get SDS Block Cluster, Pool, and Port Facts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - ./storage_var.yml
+
+  vars:
+    connection_info:
+      address: "https://vsponesdsblock-pi-8-elb-70ecdd2e65811b4b.elb.us-west-2.amazonaws.com"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    - name: Get cluster facts
+      hitachivantara.vspone_block.sds_block.hv_sds_block_cluster_config_facts:
+        connection_info: "{{ connection_info }}"
+      register: cluster_info
+
+    - name: Get pool facts
+      hitachivantara.vspone_block.sds_block.hv_sds_block_pools_facts:
+        connection_info: "{{ connection_info }}"
+      register: pool_info
+
+    - name: Get port facts
+      hitachivantara.vspone_block.sds_block.hv_sds_block_ports_facts:
+        connection_info: "{{ connection_info }}"
+      register: port_info
+
+    - name: Display key info summary
+      ansible.builtin.debug:
+        msg:
+          - "Cluster Name: {{ cluster_info.data[0].clusterName }}"
+          - "Cluster UUID: {{ cluster_info.data[0].uuid }}"
+          - "Total Pools: {{ pool_info.data | length }}"
+          - "Pool IDs: {{ pool_info.data | map(attribute='id') | list }}"
+          - "Port IDs: {{ port_info.data | map(attribute='id') | list }}"
