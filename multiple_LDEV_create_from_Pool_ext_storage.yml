@@ -1,0 +1,41 @@
+---
+####################################################################
+# Example : LDEV  Playbook
+####################################################################
+- name: Logical Device Module
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    # Auto-generate 8 IDs starting from 400
+    ldev_ids: "{{ range(400, 400 + 8) | list }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Create ldev with a specific LDEV ID
+    ####################################################################
+    - name: Create multiple ldevs
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ item }}"
+          pool_id: 11
+          size: "10GB"
+      loop: "{{ ldev_ids }}"
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+
+
