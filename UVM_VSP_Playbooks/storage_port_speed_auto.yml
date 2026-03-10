@@ -1,0 +1,38 @@
+---
+####################################################################
+# Playbook: Change Storage Port Speed to AUTO and Verify
+####################################################################
+- name: Change Storage Port Speed to AUTO
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    # Define target port once
+    target_port: "CL5-B"
+
+  tasks:
+    ####################################################################
+    # Task 1 : Change storage port speed to AUTO
+    ####################################################################
+    - name: Set storage port speed to AUTO
+      hitachivantara.vspone_block.vsp.hv_storage_port:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          port: "{{ target_port }}"
+          port_speed: "AUT"
+      register: port_speed_result
+
+    - name: Debug port speed change result
+      ansible.builtin.debug:
+        var: port_speed_result
+
