@@ -67,6 +67,7 @@
           ldev_id: "{{ ldev.ldev_id }}"
           pool_id: "{{ ldev.pool_id }}"
           size: "{{ default_size }}"
+          capacity_saving: "disabled"
           name: "{{ jnl_ldev_name_prefix }}_{{ ldev.ldev_id }}"
       register: ldev_creation_result
 
@@ -117,7 +118,7 @@
         journal_entry: |
           SN: {{ storage_serial if item.item[1].address == storage_address else secondary_storage_serial if item.item[1].address == secondary_storage_address else 'UNKNOWN' }}
           Journal ID: {{ item.ansible_facts.journal_volume.journal_pool_id }}
-          Journal Volume IDs: {{ item.ansible_facts.journal_volume.logical_unit_ids | join(', ') }}
+          Journal Volume IDs: {{ item.ansible_facts.journal_volume.ldev_ids | join(', ') }}
             Mirror Unit IDs and Copy Pace:
             {% for mirror in item.ansible_facts.journal_volume.mirrors %}
               - Mirror Unit ID: {{ mirror.mirror_unit_id }}, Copy Pace: {{ mirror.copy_pace }}
