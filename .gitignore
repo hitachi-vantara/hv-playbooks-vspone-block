@@ -1,0 +1,16 @@
+# Terraform providers and plugins
+**/.terraform/
+**/.terraform.lock.hcl
+
+# State files
+*.tfstate
+*.tfstate.backup
+*.tfplan
+
+# Sensitive files
+secrets.tfvars
+*.auto.tfvars
+
+# OS files
+.DS_Store
+Thumbs.db
