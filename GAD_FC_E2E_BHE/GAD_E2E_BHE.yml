@@ -36,7 +36,7 @@
 
 
     ####################################################################
-    # Task 1: Create Storage Pool on RCU
+    # Task 2: Create Storage Pool on RCU
     ####################################################################
     - name: Create Storage Pool on RCU
       hitachivantara.vspone_block.vsp.hv_storagepool:
@@ -50,7 +50,7 @@
       register: pool_creation_result
 
     ####################################################################
-    # Task 2: Gather Existing LDEVs in the Specified Range
+    # Task 3: Gather Existing LDEVs in the Specified Range
     ####################################################################
     - name: Gather Existing LDEVs in the Range
       hitachivantara.vspone_block.vsp.hv_ldev_facts:
@@ -61,7 +61,7 @@
       register: existing_ldevs
 
     ####################################################################
-    # Task 3: Create LDEVs (only if not already present)
+    # Task 4: Create LDEVs (only if not already present)
     ####################################################################
     - name: Create Missing LDEVs
       hitachivantara.vspone_block.vsp.hv_ldev:
@@ -78,14 +78,14 @@
       when: item not in (existing_ldevs.ansible_facts.volumes | default([]) | map(attribute='ldev_id') | list)
 
     ####################################################################
-    # Task 4: Set New LDEVs Variable (only those where changes occurred)
+    # Task 5: Set New LDEVs Variable (only those where changes occurred)
     ####################################################################
     - name: Set New LDEVs Variable
       set_fact:
         new_ldevs: "{{ ldev_creation_result.results | selectattr('changed','equalto', True) | list }}"
 
     ####################################################################
-    # Task 5: Calculate LDEV Batches for Host Group Mapping
+    # Task 6: Calculate LDEV Batches for Host Group Mapping
     ####################################################################
     - name: Calculate LDEV Batches for Host Group Mapping
       set_fact:
@@ -95,7 +95,7 @@
           }}
 
     ####################################################################
-    # Task 6: Create Host Groups with Assigned LDEVs (Skip if batch is empty)
+    # Task 7: Create Host Groups with Assigned LDEVs (Skip if batch is empty)
     ####################################################################
     - name: Create Host Groups with Assigned LDEVs
       when: new_ldevs | length > 0
@@ -115,7 +115,7 @@
       when: (ldev_batches[hg_index] if hg_index < (ldev_batches | length) else []) | length > 0
 
     ####################################################################
-    # Task : Create hostgroup on RCU
+    # Task 8: Create hostgroup on RCU
     ####################################################################
     - name: Create hostgroup
       hitachivantara.vspone_block.vsp.hv_hg:
@@ -131,7 +131,7 @@
       ansible.builtin.debug:
         var: result
 ####################################################################
-    # Pre-check: Get all Resource Groups on RCU to check for existing VSM
+    # Task 9: Pre-check: Get all Resource Groups on RCU to check for existing VSM
     ####################################################################
     - name: Validate virtual_serial_number format
       ansible.builtin.assert:
@@ -172,7 +172,7 @@
           | default({}) }}"
 
     ######################################################################################
-    # Path A: VSM does NOT exist — Create the full resource group with all resources
+    # Task 10A: Path A: VSM does NOT exist — Create the full resource group with all resources
     ######################################################################################
     - name: Create a Resource Group with VSM, port, and host group
       hitachivantara.vspone_block.vsp.hv_resource_group:
@@ -194,7 +194,7 @@
       when: not (vsm_already_exists | bool)
 
     ######################################################################################
-    # Path B: VSM DOES exist — Ensure the secondary port and host group are in the RG
+    # Task 10B: Path B: VSM DOES exist — Ensure the secondary port and host group are in the RG
     # (This is required for GAD pair creation; without it you get FA1B)
     ######################################################################################
     - name: Display existing VSM info
@@ -256,7 +256,7 @@
         - port_exists_in_rg | bool
         - hg_exists_in_rg | bool
     ####################################################################
-    # Task Name : Register Quorum Disk on MCU
+    # Task 11 : Register Quorum Disk on MCU
     ####################################################################
     - name: Register Quorum Disk on MCU
       hitachivantara.vspone_block.vsp.hv_quorum_disk:
@@ -274,7 +274,7 @@
         var: result
 
     ####################################################################
-    # Task Name : Register Quorum Disk on RCU
+    # Task 12 : Register Quorum Disk on RCU
     ####################################################################
     - name: Register Quorum Disk on RCU
       hitachivantara.vspone_block.vsp.hv_quorum_disk:
@@ -292,7 +292,7 @@
         var: result
 
     ######################################################################################
-    # Task : Create a remote connection on MCU
+    # Task 13: Create a remote connection on MCU
     ######################################################################################
     - name: Create a new remote connection on MCU
       hitachivantara.vspone_block.vsp.hv_remote_connection:
@@ -312,7 +312,7 @@
         var: result
 
     ######################################################################################
-    # Task : Create remote connection on RCU
+    # Task 14: Create remote connection on RCU
     ######################################################################################
     - name: Create a new remote connection on RCU
       hitachivantara.vspone_block.vsp.hv_remote_connection:
@@ -334,7 +334,7 @@
 
 
     #####################################################################
-    # Task X: Create GAD pairs for each new LDEV
+    # Task 15: Create GAD pairs for each new LDEV
     #####################################################################
     - name: Create GAD pair for each created LDEV
       hitachivantara.vspone_block.vsp.hv_gad:
@@ -366,7 +366,7 @@
 
 
     ####################################################################
-    # Task 7: Build Consolidated Pre-Configuration Report Text
+    # Task 16: Build Consolidated Pre-Configuration Report Text
     ####################################################################
     - name: Build Consolidated Pre-Configuration Report Text
       set_fact:
@@ -412,7 +412,7 @@
           ============================================================
 
     ####################################################################
-    # Task 8: Write the Pre-Configuration Report to a File
+    # Task 17: Write the Pre-Configuration Report to a File
     ####################################################################
     - name: Write Pre-Configuration Report to File
       copy:
