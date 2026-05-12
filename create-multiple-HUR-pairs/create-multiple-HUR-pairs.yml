@@ -1,0 +1,229 @@
+---
+- name: HUR Bulk Creation
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+
+    - name: Validate start_svol_id when same_pvol_and_svol_id is N
+      fail:
+        msg: "start_svol_id must be defined when same_pvol_and_svol_id = N"
+      when:
+        - same_pvol_and_svol_id == "N"
+        - start_svol_id is not defined
+
+    - name: Prepare journal and path group lists
+      set_fact:
+        jnlg_list: "{{ range(start_jnl_id, start_jnl_id + num_jnlgs) | map('regex_replace', '^', 'ur') | list }}"
+        path_group_list: "{{ path_groups.split(',') | map('int') | list }}"
+        parsed_ports: "{{ pvol_ports | map('regex_replace', '^([^,]+),(.+)$', '{\"port_id\": \"\\1\", \"hostgroup\": \"\\2\"}') | map('from_yaml') | list }}"
+
+    - name: Generate HUR sequence with LDEV and journal assignments
+      set_fact:
+        hur_sequence: "{{ hur_sequence | default([]) + seq }}"
+        ldev_counter: "{{ (ldev_counter | default(start_ldev_id) | int) + (count | int) }}"
+      vars:
+        count: "{{ (total_pvols | int // num_jnlgs | int) + (1 if (item | int) < (total_pvols | int % num_jnlgs | int) else 0) }}"
+        seq: >-
+          {%- set out = [] -%}
+          {%- for i in range(count | int) -%}
+            {%- set _ = out.append({
+              'jnlg': jnlg_list[item],
+              'ldev_id': (ldev_counter | default(start_ldev_id) | int) + i,
+              'path_group_id': path_group_list[item % (path_group_list | length)]
+            }) -%}
+          {%- endfor -%}
+          {{ out }}
+      loop: "{{ range(num_jnlgs | int) }}"
+
+    - name: Assign hostgroups (multipathing=Y) or ports (multipathing=N)
+      set_fact:
+        hur_sequence: >-
+          {%- set out = [] -%}
+          {%- set total = hur_sequence | length -%}
+
+          {%- if multipathing == "Y" -%}
+            {%- set hg_list = parsed_ports | map(attribute='hostgroup') | unique | list -%}
+            {%- set per_hg = total // (hg_list | length) -%}
+            {%- for i in range(total) -%}
+              {%- set hg_idx = [i // per_hg, (hg_list | length) - 1] | min -%}
+              {%- set _ = out.append(hur_sequence[i] | combine({'hostgroup': hg_list[hg_idx]})) -%}
+            {%- endfor -%}
+
+          {%- else -%}
+            {%- set port_list = parsed_ports | map(attribute='port_id') | list -%}
+            {%- set vols_per_port = total // (port_list | length) -%}
+            {%- for i in range(total) -%}
+              {%- set port_idx = [i // vols_per_port, (port_list | length) - 1] | min -%}
+              {%- set port = port_list[port_idx] -%}
+              {%- set hg = (parsed_ports | selectattr('port_id', 'equalto', port) | first).hostgroup -%}
+              {%- set _ = out.append(hur_sequence[i] | combine({'hostgroup': hg, 'port_id': port})) -%}
+            {%- endfor -%}
+          {%- endif -%}
+
+          {{ out }}
+
+    - name: Group sequence by journal
+      set_fact:
+        jnlg_map: "{{ jnlg_map | default({}) | combine({item.jnlg: (jnlg_map[item.jnlg] | default([])) + [item]}) }}"
+      loop: "{{ hur_sequence }}"
+
+    - name: Split into batches per journal and hostgroup/port
+      set_fact:
+        hur_bulk_batches: "{{ hur_bulk_batches | default([]) + batch_list }}"
+      vars:
+        batch_list: >-
+          {%- set out = [] -%}
+          {%- set group_key = 'hostgroup' if multipathing == 'Y' else 'port_id' -%}
+          {%- set group_vals = (parsed_ports | map(attribute='hostgroup') | unique | list)
+                               if multipathing == 'Y'
+                               else (parsed_ports | map(attribute='port_id') | list) -%}
+
+          {%- for gval in group_vals -%}
+            {%- set items = item.value | selectattr(group_key, 'equalto', gval) | list -%}
+            {%- for i in range(0, items | length, batch_size) -%}
+              {%- set chunk = items[i:i+batch_size] -%}
+              {%- if chunk -%}
+                {%- set _ = out.append({
+                  'jnlg': item.key,
+                  'ldevs': chunk,
+                  'path_group_id': chunk[0].path_group_id,
+                  'hostgroup': chunk[0].hostgroup
+                }) -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endfor -%}
+
+          {{ out }}
+      loop: "{{ jnlg_map | dict2items }}"
+
+    - name: Add primary_hostgroups to each batch
+      set_fact:
+        hur_bulk_batches: >-
+          {%- set out = [] -%}
+          {%- for b in hur_bulk_batches -%}
+            {%- if multipathing == "Y" -%}
+              {%- set ports = parsed_ports | selectattr('hostgroup', 'equalto', b.hostgroup)
+                              | map(attribute='port_id')
+                              | map('regex_replace', '^(.*)$', '{"name": "' ~ b.hostgroup ~ '", "port_id": "\\1"}')
+                              | map('from_yaml') | list -%}
+            {%- else -%}
+              {%- set ports = [{'name': b.hostgroup, 'port_id': b.ldevs[0].port_id}] -%}
+            {%- endif -%}
+            {%- set _ = out.append(b | combine({'primary_hostgroups': ports})) -%}
+          {%- endfor -%}
+          {{ out }}
+
+    - name: Sort batches by journal group
+      set_fact:
+        hur_bulk_batches: >-
+          {%- set out = [] -%}
+          {%- for j in hur_bulk_batches | map(attribute='jnlg') | unique | list | sort -%}
+            {%- for b in hur_bulk_batches if b.jnlg == j -%}
+              {%- set _ = out.append(b) -%}
+            {%- endfor -%}
+          {%- endfor -%}
+          {{ out }}
+    - name: Generate bulk report
+      set_fact:
+        report: |
+          JNLG   | PG | HG | PORTS                    | RANGE       | COUNT
+          ------ | -- | -- | ------------------------ | ----------- | -----
+          {% for b in hur_bulk_batches %}
+          {{ "%-6s | %-2s | %-2s | %-24s | %-11s | %-5s" | format(
+            b.jnlg,
+            b.path_group_id,
+            b.hostgroup,
+            b.primary_hostgroups | map(attribute='port_id') | join(','),
+            b.ldevs[0].ldev_id ~ "-" ~ b.ldevs[-1].ldev_id,
+            b.ldevs | length
+          ) }}
+          {% endfor %}
+    - name: Show batch report
+      debug:
+        msg: "{{ report.split('\n') }}"
+
+    - name: Confirm before execution
+      pause:
+        prompt: "Proceed with HUR bulk creation? Type 'yes' to continue, anything else to abort:"
+      register: user_input
+
+    - name: Abort if not confirmed
+      fail:
+        msg: "Execution aborted by user."
+      when: user_input.user_input | lower != "yes"
+
+    - name: Create HUR pairs
+      hitachivantara.vspone_block.vsp.hv_hur_bulk:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        spec:
+          number_of_pairs: "{{ item.ldevs | length }}"
+          copy_group_name: "ur_copy_group_{{ item.jnlg }}"
+          copy_pair_base_name: "ur_pair_{{ item.jnlg }}"
+          primary_pool_id: "{{ primary_pool_id }}"
+          secondary_pool_id: "{{ secondary_pool_id }}"
+          primary_volume_base_name: "{{ base_name }}"
+          primary_volume_base_name_start_number: "{{ item.ldevs[0].ldev_id }}"
+          should_match_volume_ids: true
+          volume_size: "{{ volume_size }}"
+          capacity_saving: "{{ capacity_saving }}"
+          primary_hostgroups: "{{ item.primary_hostgroups }}"
+          secondary_hostgroups:
+            - name: "{{ svol_ports[0].split(',')[1] }}"
+              port_id: "{{ svol_ports[0].split(',')[0] }}"
+          begin_primary_volume_id: "{{ item.ldevs[0].ldev_id }}"
+          end_primary_volume_id: "{{ item.ldevs[-1].ldev_id }}"
+          begin_secondary_volume_id: >-
+            {{ (same_pvol_and_svol_id == "N") | ternary(
+              (start_svol_id | default(0) | int) + (item.ldevs[0].ldev_id - start_ldev_id),
+              item.ldevs[0].ldev_id) }}
+          end_secondary_volume_id: >-
+            {{ (same_pvol_and_svol_id == "N") | ternary(
+              (start_svol_id | default(0) | int) + (item.ldevs[-1].ldev_id - start_ldev_id),
+              item.ldevs[-1].ldev_id) }}
+          primary_journal_id: "{{ item.jnlg | regex_replace('^ur', '') | int }}"
+          secondary_journal_id: "{{ item.jnlg | regex_replace('^ur', '') | int }}"
+          path_group_id: "{{ item.path_group_id }}"
+      loop: "{{ hur_bulk_batches }}"
+      register: result
+    - name: Write HUR pair report
+      copy:
+        content: |
+          Primary_Volume_ID | Primary_Journal_ID | Secondary_Volume_ID | Secondary_Journal_ID | Consistency_Group_ID | Path_Group_ID | Primary_HGs | Secondary_HGs
+          ----------------- | ------------------ | ------------------- | -------------------- | -------------------- | ------------- | ----------- | --------------
+          {% for r in result.results if not r.failed | default(false) %}
+          {% for pair in r.hur_bulk_info %}
+          {{ "%-17s | %-18s | %-19s | %-20s | %-20s | %-13s | %-11s | %s" | format(
+            pair.primary_volume_id,
+            pair.primary_journal_id,
+            pair.secondary_volume_id,
+            pair.secondary_journal_id,
+            pair.consistency_group_id,
+            r.item.path_group_id,
+            r.item.primary_hostgroups | map(attribute='name') | unique | join(','),
+            r.invocation.module_args.spec.secondary_hostgroups | map(attribute='name') | unique | join(',')
+          ) }}
+          {% endfor %}
+          {% endfor %}
+        dest: "/tmp/hur_pair_report_{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}.txt"
+      register: report_file
+
+    - name: Show report location
+      debug:
+        msg: "HUR Pair Report written to {{ report_file.dest }}"
+
+

@@ -1,0 +1,31 @@
+####################################################################################
+#Options for capacity_saving: "Compression", "Compression_Deduplication"
+#Use pre-defined hostgroups for both P-Vols and S-Vols
+#Use pre-defined journals for both MCU and RCU
+####################################################################################
+total_pvols: 16
+num_jnlgs: 2
+start_jnl_id: 0
+start_ldev_id: 2000
+same_pvol_and_svol_id: "Y" #  "Y|N", with option 'N', mention start_svol_id
+#start_svol_id: 2000
+path_groups: "2,4"
+multipathing: "N" #  "Y|N"
+batch_size: 32
+pvol_ports:
+  - CL1-A,h1
+  - CL4-A,h1
+  - CL5-A,h2
+  - CL8-A,h2
+  - CL1-D,h3
+  - CL2-D,h3
+  - CL3-D,h4
+  - CL4-D,h4
+svol_ports:
+  - CL5-A,SvolPort
+primary_pool_id: 0
+secondary_pool_id: 0
+volume_size: "512GB"
+capacity_saving: "Compression_Deduplication"
+base_name: "hur_vols"
+##############################################################
