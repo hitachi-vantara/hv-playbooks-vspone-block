@@ -34,8 +34,22 @@ vault_secondary_storage_secret: <password>
 
 # Execution
 
-Create a “_var.yml_” file that defines the MCU and RCU port mappings for each remote connection. In the above diagram, for example, CL5-A from MCU connects to CL5-B of RCU in Path Group ID 0. List each pair of ports for a given path group on the same line, separated by commas. For additional path groups, add new lines as shown in the sample variable file content below. Repeat the same process for RCU paths.
-specify the MCU and RCU volumes, with each line representing the volumes assigned per pool. The file also defines Adaptive Data Reduction (ADR) options ("compression", "compression_deduplication", or "disabled"), default LDEV size, a naming prefix for volumes, and whether Data Reduction Share (DRS) is enabled or disabled for MCU and RCU volumes.
+Create a var.yml file that defines the following configuration parameters required for bulk HUR pair creation:
+
+• Total number of P-VOLs (that is, the total number of HUR pairs to be created)
+• Total number of journal groups
+• Starting journal group ID
+• Starting P-VOL LDEV ID
+• Whether the S-VOL should use the same LDEV ID as the corresponding P-VOL
+• Number of path groups
+• Whether multipathing should be used for P-VOL host mappings
+• Batch size (must always be set to 32 and should not be modified)
+• Host groups and ports for P-VOL mappings
+• Host groups and ports for S-VOL mappings
+• Primary and secondary pool IDs used for provisioning volumes
+• Volume size and capacity saving mode
+• Base naming prefix for generated volumes
+• Whether Data Reduction Share (DRS) is enabled or disabled for both MCU and RCU volumes
 
 **Sample input for “var.yml” file:**
 ```
@@ -62,7 +76,6 @@ svol_ports:
 primary_pool_id: 0
 secondary_pool_id: 0
 volume_size: "512GB"
-#capacity_saving: "Compression"
 capacity_saving: "Compression_Deduplication"
 base_name: "hur_vols"
 data_reduction_share: true
