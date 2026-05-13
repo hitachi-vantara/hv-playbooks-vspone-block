@@ -37,18 +37,31 @@ vault_secondary_storage_secret: <password>
 Create a var.yml file that defines the following configuration parameters required for bulk HUR pair creation:
 
 • Total number of P-VOLs (that is, the total number of HUR pairs to be created)
+
 • Total number of journal groups
+
 • Starting journal group ID
+
 • Starting P-VOL LDEV ID
+
 • Whether the S-VOL should use the same LDEV ID as the corresponding P-VOL
+
 • Number of path groups
+
 • Whether multipathing should be used for P-VOL host mappings
+
 • Batch size (must always be set to 32 and should not be modified)
+
 • Host groups and ports for P-VOL mappings
+
 • Host groups and ports for S-VOL mappings
+
 • Primary and secondary pool IDs used for provisioning volumes
+
 • Volume size and capacity saving mode
+
 • Base naming prefix for generated volumes
+
 • Whether Data Reduction Share (DRS) is enabled or disabled for both MCU and RCU volumes
 
 **Sample input for “var.yml” file:**
