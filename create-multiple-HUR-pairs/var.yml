@@ -27,5 +27,6 @@ primary_pool_id: 0
 secondary_pool_id: 0
 volume_size: "512GB"
 capacity_saving: "Compression_Deduplication"
+data_reduction_share: true
 base_name: "hur_vols"
 ##############################################################

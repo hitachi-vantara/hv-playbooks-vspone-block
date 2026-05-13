@@ -181,6 +181,7 @@
           should_match_volume_ids: true
           volume_size: "{{ volume_size }}"
           capacity_saving: "{{ capacity_saving }}"
+          data_reduction_share: "{{data_reduction_share}}"
           primary_hostgroups: "{{ item.primary_hostgroups }}"
           secondary_hostgroups:
             - name: "{{ svol_ports[0].split(',')[1] }}"
