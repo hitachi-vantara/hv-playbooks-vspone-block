@@ -4,7 +4,8 @@ Simplify large-scale Hitachi Universal Replicator (HUR) pair provisioning with R
 
 # Test Environment
 Below diagram depicts a standard UR configuration with 128 HUR pairs and 2x Journal Groups.
-![Remote Replication Diagram](./assets/Remote_Replication.png)
+
+![Remote Replication Diagram](./assets/HUR_Replication.png)
 
 # Prerequisite
 # Execution
