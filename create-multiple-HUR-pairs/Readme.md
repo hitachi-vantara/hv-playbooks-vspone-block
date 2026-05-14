@@ -143,4 +143,4 @@ Primary_Volume_ID | Primary_Journal_ID | Secondary_Volume_ID | Secondary_Journal
 
 ```
 # Note
-This playbook creates HUR pairs from fresh, does not support creating pairs with existing volumes, use "hv_hur" module instead.
+This playbook creates HUR pairs from scratch and does not support using pre-existing volumes. To create HUR pairs with existing volumes, use the "_hv_hur_" module instead.
