@@ -94,7 +94,7 @@ base_name: "hur_vols"
 data_reduction_share: true
 
 ```
-Note: This playbook ask for user confirmation before proceeding to create the pairs. The pairs will be added to corresponding CTG id, same as journal group id.
+Note: This playbook prompts for user confirmation before proceeding with pair creation. Each pair is added to its corresponding CTG ID, which matches the journal group ID.
 
 ```
 TASK [Show batch report] ********************************************************************************************************************************************************************
