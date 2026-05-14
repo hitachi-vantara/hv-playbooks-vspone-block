@@ -1,6 +1,6 @@
 # Ansible Playbook: Bulk creation of multiple UR pairs
 # Overview
-Simplify large-scale Hitachi Universal Replicator (UR) pair provisioning with Red Hat Ansible automation. In environments where hundreds of HUR pairs need to be created—such as 128 or 256 pairs—provisioning each pair individually using the hv_hur module can be both time-consuming and inefficient. To address this challenge, Hitachi Vantara Automation introduces the "hv_hur_bulk" module, which is specifically designed for high-volume HUR pair creation. This Ansible Playbook enables batch provisioning of multiple HUR pairs based on parameters defined in a user-supplied variable file, including the number of pairs to create, start and end LDEV IDs, capacity saving settings, preconfigured host groups, and journal assignments. During execution, the playbook dynamically applies these inputs to automate the end-to-end provisioning process, significantly reducing deployment time and simplifying large-scale disaster recovery configuration.
+Simplify large-scale Hitachi Universal Replicator (UR) pair provisioning with Red Hat Ansible automation. In environments where hundreds of HUR pairs need to be created—such as 128 or 256 pairs, provisioning each pair individually using the "_hv_hur_" module can be both time-consuming and inefficient. To address this challenge, Hitachi Vantara Storage Automation introduces the "_hv_hur_bulk_" module, which is specifically designed for high-volume HUR pair creation. This Ansible Playbook enables batch provisioning of multiple HUR pairs based on parameters defined in a user-supplied variable file, including the number of pairs to create, start and end LDEV IDs, capacity saving settings, preconfigured host groups, and journal assignments. During execution, the playbook dynamically applies these inputs to automate the end-to-end provisioning process, significantly reducing deployment time and simplifying large-scale disaster recovery configuration.
 
 # Test Environment
 Below diagram depicts a standard UR configuration with 128 UR pairs and 2x Journal Groups.
@@ -94,7 +94,27 @@ base_name: "hur_vols"
 data_reduction_share: true
 
 ```
-Note: This playbook works with either MCU, RCU, or both path entries in “var.yml” file.
+Note: This playbook ask for user confirmation before proceeding to create the pairs. The pairs will be added to corresponding CTG id, same as journal group id.
+
+```
+TASK [Show batch report] ********************************************************************************************************************************************************************
+ok: [localhost] => {
+    "msg": [
+        "JNLG   | PG | HG | PORTS                    | RANGE       | COUNT",
+        "------ | -- | -- | ------------------------ | ----------- | -----",
+        "ur0    | 2  | h1 | CL1-A,CL4-A              | 2000-2031   | 32   ",
+        "ur0    | 2  | h2 | CL5-A,CL8-A              | 2032-2063   | 32   ",
+        "ur1    | 4  | h3 | CL1-D,CL2-D              | 2064-2095   | 32   ",
+        "ur1    | 4  | h4 | CL3-D,CL4-D              | 2096-2127   | 32   ",
+        ""
+    ]
+}
+
+TASK [Confirm before execution] *************************************************************************************************************************************************************
+[Confirm before execution]
+Proceed with HUR bulk creation? Type 'yes' to continue, anything else to abort::
+
+```
 
 Run the playbook with _ansible-playbook <playbook_name>_
 This generates an output file as shown below.
