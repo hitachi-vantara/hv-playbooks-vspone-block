@@ -18,7 +18,7 @@ Below diagram depicts a standard GAD configuration with 128 GAD pairs and one FC
 
 •	Quorum is already configured.
 
-•	VSM is already created and S-Vols host group is added in VSM.
+•	VSM is already created and S-Vols host group is added in VSM<sup>1</sup>
 
 •	A standard variable file for storage credentials (“_ansible_vault_storage_var.yml_”) is created as shown below:
 
