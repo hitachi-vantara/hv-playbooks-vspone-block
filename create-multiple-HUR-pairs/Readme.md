@@ -95,6 +95,7 @@ data_reduction_share: true
 
 ```
 Run the playbook with _ansible-playbook <playbook_name>_
+
 Note: This playbook prompts for user confirmation before proceeding with pair creation. Each pair is assigned to a corresponding CTG ID in proportion to the journal group ID.
 
 ```
