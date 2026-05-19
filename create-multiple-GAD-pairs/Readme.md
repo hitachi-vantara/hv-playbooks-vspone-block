@@ -34,23 +34,21 @@ vault_secondary_storage_username: <username>
 vault_secondary_storage_secret: <password>
 ```
 
-Note: If S-Vols host-group is not added in VSM, use an additional parameter "_spec.virtual_storage_serial_number_" with "_hv_gad_bulk_" module. 
+1 If you do not want to add the S-Vol host group to the VSM, specify the additional parameter "_spec.virtual_storage_serial_number_" when using the "_hv_gad_bulk_" module. The module will create the VSM and add the S-Vols and host groups to the specified VSM.
 
 # Execution
 
-Create a var.yml file that defines the following configuration parameters required for bulk HUR pair creation:
+Create a var.yml file that defines the following configuration parameters required for bulk GAD pair creation:
 
 • Total number of P-VOLs (that is, the total number of GAD pairs to be created)
 
-• Total number of journal groups
-
-• Starting journal group ID
-
 • Starting P-VOL LDEV ID
+
+• Starting consistency group ID, i.e., CTG ID <sup>1</sup>
 
 • Whether the S-VOL should use the same LDEV ID as the corresponding P-VOL
 
-• Number of path groups
+• Number of remote path groups
 
 • Whether multipathing should be used for P-VOL host mappings
 
@@ -64,9 +62,9 @@ Create a var.yml file that defines the following configuration parameters requir
 
 • Volume size and capacity saving mode
 
-• Base naming prefix for generated volumes
+• Quorum ID
 
-• Whether Data Reduction Share (DRS) is enabled or disabled for both MCU and RCU volumes
+• Base naming prefix for generated volumes
 
 **Sample input for “var.yml” file:**
 ```
@@ -99,9 +97,11 @@ base_name: "gad_vols"
 
 
 ```
+Note: Number of CTG is automatically calculated based on the number of remote path groups.
+
 Run the playbook with _ansible-playbook <playbook_name>_
 
-Note: This playbook prompts for user confirmation before proceeding with pair creation. Each pair is assigned to a corresponding CTG ID in proportion to the journal group ID.
+Note: This playbook prompts for user confirmation before proceeding with pair creation.
 
 ```
 TASK [Show batch report] ********************************************************************************************************************************************************************
@@ -151,4 +151,4 @@ Primary_Volume_ID | Secondary_Volume_ID | Consistency_Group_ID | Path_Group_ID |
 
 ```
 # Note
-This playbook creates GAD pairs from scratch and does not support using pre-existing volumes. To create HUR pairs with existing volumes, use the "_hv_gad_" module instead.
+This playbook creates GAD pairs from scratch and does not support using pre-existing volumes. To create GAD pairs with existing volumes, use the "_hv_gad_" module instead.
