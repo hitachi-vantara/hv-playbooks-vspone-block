@@ -147,4 +147,4 @@ Primary_Volume_ID | Secondary_Volume_ID | Consistency_Group_ID | Path_Group_ID |
 
 ```
 # Note
-This playbook creates HUR pairs from scratch and does not support using pre-existing volumes. To create HUR pairs with existing volumes, use the "_hv_hur_" module instead.
+This playbook creates GAD pairs from scratch and does not support using pre-existing volumes. To create HUR pairs with existing volumes, use the "_hv_gad_" module instead.
