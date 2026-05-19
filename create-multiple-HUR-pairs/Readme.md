@@ -94,6 +94,7 @@ base_name: "hur_vols"
 data_reduction_share: true
 
 ```
+Run the playbook with _ansible-playbook <playbook_name>_
 Note: This playbook prompts for user confirmation before proceeding with pair creation. Each pair is assigned to a corresponding CTG ID in proportion to the journal group ID.
 
 ```
@@ -116,7 +117,6 @@ Proceed with HUR bulk creation? Type 'yes' to continue, anything else to abort::
 
 ```
 
-Run the playbook with _ansible-playbook <playbook_name>_
 This generates an output file as shown below.
 
 **Sample Output:**
