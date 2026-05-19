@@ -1,9 +1,9 @@
 # Ansible Playbook: Bulk creation of multiple GAD pairs
 # Overview
-Simplify large-scale Hitachi Global Active Device (GAD) pair provisioning with Red Hat Ansible automation. In environments where hundreds of HUR pairs need to be created—such as 128 or 256 pairs, provisioning each pair individually using the "_hv_hur_" module can be both time-consuming and inefficient. To address this challenge, Hitachi Vantara Storage Automation introduces the "_hv_hur_bulk_" module, which is specifically designed for high-volume HUR pair creation. This Ansible Playbook enables batch provisioning of multiple HUR pairs based on parameters defined in a user-supplied variable file, including the number of pairs to create, start and end LDEV IDs, capacity saving settings, preconfigured host groups, and journal assignments. During execution, the playbook dynamically applies these inputs to automate the end-to-end provisioning process, significantly reducing deployment time and simplifying large-scale disaster recovery configuration.
+Simplify large-scale Hitachi Global Active Device (GAD) pair provisioning with Red Hat Ansible automation. In environments where hundreds of GAD pairs need to be created—such as 128 or 256 pairs, provisioning each pair individually using the "_hv_gad_" module can be both time-consuming and inefficient. To address this challenge, Hitachi Vantara Storage Automation introduces the "_hv_gad_bulk_" module, which is specifically designed for high-volume GAD pair creation. This Ansible Playbook enables batch provisioning of multiple GAD pairs based on parameters defined in a user-supplied variable file, including the number of pairs to create, start and end LDEV IDs, capacity saving settings, preconfigured host groups, and quorum assignments. During execution, the playbook dynamically applies these inputs to automate the end-to-end provisioning process, significantly reducing deployment time and simplifying large-scale disaster recovery configuration.
 
 # Test Environment
-Below diagram depicts a standard UR configuration with 128 UR pairs and 2x Journal Groups.
+Below diagram depicts a standard GAD configuration with 128 GAD pairs and one FC quorum.
 
 ![Remote Replication Diagram](./assets/GAD_Replication.png)
 
@@ -16,7 +16,9 @@ Below diagram depicts a standard UR configuration with 128 UR pairs and 2x Journ
 
 •	Host groups for P-Vols and S-Vols are already provisioned.
 
-•	Journals are created and copy pace set to Medium. (Refer to the playbook, https://github.com/hitachi-vantara/hv-playbooks-vspone-block/tree/main/create-HUR-journals)
+•	Quorum is already configured.
+
+•	VSM is already created and S-Vols host group is added in VSM.
 
 •	A standard variable file for storage credentials (“_ansible_vault_storage_var.yml_”) is created as shown below:
 
@@ -32,11 +34,13 @@ vault_secondary_storage_username: <username>
 vault_secondary_storage_secret: <password>
 ```
 
+Note: If S-Vols host-group is not added in VSM, use an additional parameter "_spec.virtual_storage_serial_number_" with "_hv_gad_bulk_" module. 
+
 # Execution
 
 Create a var.yml file that defines the following configuration parameters required for bulk HUR pair creation:
 
-• Total number of P-VOLs (that is, the total number of HUR pairs to be created)
+• Total number of P-VOLs (that is, the total number of GAD pairs to be created)
 
 • Total number of journal groups
 
