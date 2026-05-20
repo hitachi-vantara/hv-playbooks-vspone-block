@@ -34,7 +34,7 @@ vault_secondary_storage_username: <username>
 vault_secondary_storage_secret: <password>
 ```
 
-1 If you do not want to add the S-Vol host group to the VSM, specify the additional parameter "_spec.virtual_storage_serial_number_" when using the "_hv_gad_bulk_" module. The module will create the VSM and add the S-Vols and host groups to the specified VSM.
+1 If you do not want to add the S-Vol host group to the VSM, specify the additional parameter "_spec.virtual_storage_serial_number_" when using the "_hv_gad_bulk_" module. The module then create the VSM and add the S-Vols and host groups to the specified VSM.
 
 # Execution
 
