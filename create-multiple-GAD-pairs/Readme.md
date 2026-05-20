@@ -44,7 +44,7 @@ Create a var.yml file that defines the following configuration parameters requir
 
 • Starting P-VOL LDEV ID
 
-• Starting consistency group ID, i.e., CTG ID <sup>1</sup>
+• Starting consistency group ID, i.e., CTG ID
 
 • Whether the S-VOL should use the same LDEV ID as the corresponding P-VOL
 
