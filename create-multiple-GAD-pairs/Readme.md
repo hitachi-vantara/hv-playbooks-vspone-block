@@ -93,8 +93,6 @@ volume_size: "512GB"
 capacity_saving: "Compression_Deduplication"
 quorum_disk_id: 0
 base_name: "gad_vols"
-#data_reduction_share: true
-
 
 ```
 Note: Number of CTG is automatically calculated based on the number of remote path groups.
