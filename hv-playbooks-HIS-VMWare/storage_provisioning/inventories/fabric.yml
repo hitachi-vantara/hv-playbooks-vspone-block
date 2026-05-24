@@ -1,0 +1,15 @@
+# ============================================================
+# Inventory: storage_provisioning/inventories/fabric.yml
+# Description:
+#   Defines Hitachi VSP storage hosts for server registration
+#   and volume provisioning. Sensitive credentials are stored
+#   in global_vault/vcf_vault.yml encrypted with Ansible Vault.
+#   All volume and server parameters are collected via
+#   vars_prompt at runtime — nothing is hardcoded here.
+# ============================================================
+---
+switches:
+  hosts:
+    storage1:
+      ansible_host: 10.10.10.10
+      storage_address: 10.10.10.10

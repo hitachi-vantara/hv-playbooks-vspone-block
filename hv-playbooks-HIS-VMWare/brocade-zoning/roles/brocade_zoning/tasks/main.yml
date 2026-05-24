@@ -1,0 +1,74 @@
+# ============================================================
+# Role Tasks: brocade-zoning/roles/brocade_zoning/tasks/main.yml
+# Description:
+#   Automates FC zoning on Brocade G720 switches.
+#   Credentials are injected at runtime via vars_prompt
+#   in the parent playbook.
+# ============================================================
+---
+# ----------------------------------------------------------
+# TASK 1: Create server alias mapped to its WWPN
+# ----------------------------------------------------------
+- name: Create server alias
+  brocade.fos.brocade_zoning_alias:
+    credential:
+      fos_ip_addr: "{{ ansible_host }}"
+      fos_user_name: "{{ switch_user }}"
+      fos_password: "{{ switch_password }}"
+      https: self
+    vfid: "{{ fid }}"
+    aliases:
+      - name: "{{ server_alias }}"
+        members:
+          - "{{ server_wwpn }}"
+  register: alias_out
+
+- name: Show alias result
+  ansible.builtin.debug:
+    msg: "Alias '{{ server_alias }}' -> {{ server_wwpn }} | Changed: {{ alias_out.changed }}"
+
+# ----------------------------------------------------------
+# TASK 2: Create zone with server and storage aliases
+# ----------------------------------------------------------
+- name: Create zone with server and storage alias
+  brocade.fos.brocade_zoning_zone:
+    credential:
+      fos_ip_addr: "{{ ansible_host }}"
+      fos_user_name: "{{ switch_user }}"
+      fos_password: "{{ switch_password }}"
+      https: self
+    vfid: "{{ fid }}"
+    members_add_only: true
+    zones:
+      - name: "{{ zone_name }}"
+        members:
+          - "{{ server_alias }}"
+          - "{{ storage_alias }}"
+  register: zone_out
+
+- name: Show zone result
+  ansible.builtin.debug:
+    msg: "Zone '{{ zone_name }}' members: [{{ server_alias }}, {{ storage_alias }}] | Changed: {{ zone_out.changed }}"
+
+# ----------------------------------------------------------
+# TASK 3: Add zone to existing configuration and activate
+# ----------------------------------------------------------
+- name: Add zone to existing configuration and enable
+  brocade.fos.brocade_zoning_cfg:
+    credential:
+      fos_ip_addr: "{{ ansible_host }}"
+      fos_user_name: "{{ switch_user }}"
+      fos_password: "{{ switch_password }}"
+      https: self
+    vfid: "{{ fid }}"
+    members_add_only: true
+    cfgs:
+      - name: "{{ cfg_name }}"
+        members:
+          - "{{ zone_name }}"
+    active_cfg: "{{ cfg_name }}"
+  register: cfg_out
+
+- name: Show cfg result
+  ansible.builtin.debug:
+    msg: "Zone '{{ zone_name }}' added to cfg '{{ cfg_name }}' and activated | Changed: {{ cfg_out.changed }}"
