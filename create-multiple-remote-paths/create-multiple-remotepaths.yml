@@ -34,12 +34,15 @@
         config: "{{ item.split(':')[1] }}"
         port_pairs: "{{ config.split(',')[:-1] }}"
         path_group_id: "{{ config.split(',')[-1] | int }}"
-        remote_paths: >-
+        remote_paths: |
           [
           {% for pair in port_pairs %}
             {% set ports = pair.split() %}
             {% if ports | length == 2 %}
-              { "local_port": "{{ ports[0] }}", "remote_port": "{{ ports[1] }}" }{{ "," if not loop.last else "" }}
+              {
+                "local_port": "{{ ports[0] }}",
+                "remote_port": "{{ ports[1] }}"
+              }{{ "," if not loop.last else "" }}
             {% endif %}
           {% endfor %}
           ]
@@ -49,7 +52,7 @@
         spec:
           path_group_id: "{{ path_group_id }}"
           remote_storage_serial_number: "{{ (secondary_storage_serial if type == 'mcu' else storage_serial) | trim }}"
-          remote_paths: "{{ remote_paths }}"
+          remote_paths: "{{ remote_paths | from_yaml }}"
           min_remote_paths: 1
           remote_io_timeout_in_sec: 15
           round_trip_in_msec: 1
@@ -59,10 +62,8 @@
 
     - name: Format remote connection report
       set_fact:
-        remote_results: "{{ remote_path_creation_result.results }}"
-    ####################################################################
-    # Task: Initialize the Remote Path Creation Report Variable
-    ####################################################################
+        remote_results: "{{ remote_path_creation_result.results | selectattr('remote_connection', 'defined') | list }}"
+
     - name: Initialize remote path creation report
       set_fact:
         remote_path_creation_report: "===================== Remote Path Creation Report ==================\n"
@@ -75,8 +76,9 @@
         remote_path_creation_report: >-
           {{ remote_path_creation_report + report_section }}
       vars:
+        # Utilizing namespace object to preserve changes across the loop scopes safely
         report_section: |
-          {% set grouped = {} %}
+          {% set ns = namespace(grouped={}) %}
           {% for item in remote_results %}
             {% set addr = item.invocation.module_args.connection_info.address %}
             {% set remote_serial = item.remote_connection.remote_serial_number %}
@@ -87,16 +89,16 @@
                         | ternary(storage_serial, 'unknown'))
             %}
             {% set key = serial_key|string + '->' + remote_serial|string %}
-            {% if key not in grouped %}
-              {% set _ = grouped.update({key: []}) %}
+            {% if key not in ns.grouped %}
+              {% set _ = ns.grouped.update({key: []}) %}
             {% endif %}
-            {% set _ = grouped[key].append({
+            {% set _ = ns.grouped[key].append({
                 "id": item.remote_connection.path_group_id,
                 "paths": item.remote_connection.remote_paths
             }) %}
           {% endfor %}
 
-          {% for direction, groups in grouped.items() %}
+          {% for direction, groups in ns.grouped.items() %}
           remote paths: {{ direction }}
           {% for g in groups | sort(attribute='id') %}
           id: {{ g.id }}
