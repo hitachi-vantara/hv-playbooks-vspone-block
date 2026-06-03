@@ -51,8 +51,7 @@
     journal_fact_targets: >-
       {{ journal_ids_mcu | product([connection_info]) | list + journal_ids_rcu | product([secondary_connection_info]) | list }}
 
-    update_items: >-
-      {{ journal_update_targets | product(range(4) | list) | list }}
+    update_items: "{{ journal_update_targets | product([0]) | list }}"
 
   tasks:
     - name: Create LDEVs for MCU and/or RCU
@@ -66,7 +65,7 @@
         spec:
           ldev_id: "{{ ldev.ldev_id }}"
           pool_id: "{{ ldev.pool_id }}"
-          size: "{{ default_size }}"
+          size: "{{ journal_ldev_config.size_gb }}"
           capacity_saving: "disabled"
           name: "{{ jnl_ldev_name_prefix }}_{{ ldev.ldev_id }}"
       register: ldev_creation_result
@@ -83,6 +82,11 @@
           journal_id: "{{ ldev.journal_id }}"
           ldev_ids: ["{{ ldev.ldev_id }}"]
       register: journal_creation_result
+
+    # give the microcode time to transition state
+    - name: Wait for storage microcode to stabilize journal objects
+      ansible.builtin.pause:
+        seconds: 15
 
     - name: Update journal volumes' mirror units with copy pace
       loop: "{{ update_items }}"
