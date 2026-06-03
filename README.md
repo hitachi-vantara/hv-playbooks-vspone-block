@@ -146,6 +146,15 @@ This directory contains Ansible playbooks for implementing complete storage migr
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/ndm_gad_playbooks/README.md) for more info.
 
+**##Playbook: VMware Cloud Foundation Brownfield ingestion using Automation Playbooks**
+This project automates the complete Hitachi-VMware infrastructure provisioning pipeline using Ansible playbooks with Vault-secured credentials and zero hardcoded values, covering:
+
+Register servers and provision volumes on Hitachi VSP
+Zone LUNs to ESXi hosts via Brocade G720 FC switches
+Rescan HBAs and discover presented LUN canonical names
+Create VMFS datastores on VMware ESXi
+Deploy and configure VCSA 9.x with Datacenter, Cluster, VDS, and Port Group
+Import existing vCenter and NSX into VMware Cloud Foundation 9.0.1 as a VI Workload Domain
 ## Playbook: HIS-VMware-VCF-Automation-Playbooks 
 This project automates the complete Hitachi-VMware infrastructure provisioning pipeline using Ansible playbooks with Vault-secured credentials and zero hardcoded values, covering:
 
@@ -155,7 +164,6 @@ This project automates the complete Hitachi-VMware infrastructure provisioning p
 -Create VMFS datastores on VMware ESXi                                                                       
 -Deploy and configure VCSA 9.x with Datacenter, Cluster, VDS, and Port Group                                                                
 -Import existing vCenter and NSX into VMware Cloud Foundation 9.0.1 as a VI Workload Domain                         
-
 — all eliminating manual steps across the storage, networking, and virtualization layers for a fully repeatable end-to-end provisioning workflow.
 
 # **DISCLAIMER: **
