@@ -146,7 +146,7 @@ This directory contains Ansible playbooks for implementing complete storage migr
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/ndm_gad_playbooks/README.md) for more info.
 
-**##Playbook: VMware Cloud Foundation Brownfield ingestion using Automation Playbooks**
+**##Playbook: [hv-playbooks-HIS-VMWare]**
 This project automates the complete Hitachi-VMware infrastructure provisioning pipeline using Ansible playbooks with Vault-secured credentials and zero hardcoded values, covering:
 
 Register servers and provision volumes on Hitachi VSP
