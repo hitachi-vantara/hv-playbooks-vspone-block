@@ -1,0 +1,93 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Self-Contained Dependency: Fetch RCU Resource Group ID
+    ####################################################################
+    - name: Get Resource Group facts on RCU (Inline Dependency)
+      hitachivantara.vspone_block.vsp.hv_resource_group_facts:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          name: "{{ rcu_rg_name }}"
+      register: inline_rcu_rg_facts
+
+    - name: Set rcu_rg_id for standalone execution
+      ansible.builtin.set_fact:
+        rcu_rg_id: >-
+          {{
+            inline_rcu_rg_facts.ansible_facts.resource_groups[0].id | default(0)
+          }}
+
+    ####################################################################
+    # Step 1: Check if Host Groups exist on their respective ports
+    ####################################################################
+    - name: Get Host Group facts from RCU
+      hitachivantara.vspone_block.vsp.hv_hg_facts:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          port_ids: ["{{ item.port }}"]
+          name: "{{ item.name }}"
+      loop: "{{ rcu_host_groups }}"
+      register: rcu_hg_facts_results
+
+    - name: Debug the RCU HostGroup
+      ansible.builtin.debug:
+        var: rcu_hg_facts_results
+
+    ####################################################################
+    # Step 2: Create Host Groups without LDEVs
+    ####################################################################
+    - name: Create Host Groups without LDEVs
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ rcu_connection_info }}"
+        state: "present"
+        spec:
+          name: "{{ item.name }}"
+          port_id: "{{ item.port }}"
+          host_mode: "{{ item.host_mode }}"
+          wwns: "{{ item.wwns }}"
+      loop: "{{ rcu_host_groups }}"
+      loop_control:
+        index_var: hg_index
+      when: >-
+        rcu_hg_facts_results.results[hg_index].ansible_facts.hostGroups is not defined or
+        (rcu_hg_facts_results.results[hg_index].ansible_facts.hostGroups | length == 0)
+      register: hostgroup_creation_results
+
+    ####################################################################
+    # Step 3: Migrate Host Groups to Target Resource Group
+    ####################################################################
+    - name: Move Host Groups to the Target Resource Group
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ rcu_connection_info }}"
+        state: present
+        spec:
+          state: "add_resource"
+          name: "{{ rcu_rg_name }}"
+          host_groups:
+            - port: "{{ item.port }}"
+              name: "{{ item.name }}"
+      loop: "{{ rcu_host_groups }}"
+      loop_control:
+        index_var: hg_index
+      when: >
+        (rcu_hg_facts_results.results[hg_index].ansible_facts.hostGroups is not defined) or
+        (rcu_hg_facts_results.results[hg_index].ansible_facts.hostGroups | length == 0) or
+        (rcu_hg_facts_results.results[hg_index].ansible_facts.hostGroups[0].resource_group_id | default(0) != (rcu_rg_id | int))

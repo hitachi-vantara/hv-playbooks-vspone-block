@@ -30,83 +30,103 @@ substate_remove_wwn: remove_wwn
 substate_set_host_mode_and_hmo: set_host_mode_and_hmo
 substate_unpresent_ldev: unpresent_ldev
 
-####################################################################
-# Pools and Storage Pools
-####################################################################
-mcu_pool_name: jonamaypool_mcu_8
-mcu_pool_type: HDP
-mcu_pool_vols_list:
-  - parity_group_id: 1-5
-    capacity: 60GB
-rcu_pool_id: 0
+# NOTE: mcu ldevs/hgs will be move to the mcu resource group and rcu hg on rcu resourcegroup
+#       existing copygroup should also be in the same resource group
 
-rcu_pool_type: HDP
-rcu_pool_vols_list:
-  - parity_group_id: 1-3
-    capacity: 60GB
+####################################################################
+# CopyGroup & Copy Pair Name
+####################################################################
+copy_group_name: "gadcgtst2"
+copy_pair_name_prefix: "gadtst2_"
+mirror_unit_number: 3 # only 1, 2, 3
 
 ####################################################################
 # LDEVs and Volume Layout
 ####################################################################
-ldev_end_id: 446
-ldev_start_id: 445
+ldev_end_id: 6804
+ldev_start_id: 6804
+ldev_name_prefix: gadtsta2
+ldev_size: 1GB
 
-ldev_name_prefix: JonathanVol
-ldev_size: 10GB
-mcu_pool_id: 1
-host_groups:
-  - name: mcu-vol-jonnnn7
-    port: CL1-E
-    host_mode: LINUX
+####################################################################
+# Hostgroups
+# Note: uppercase wwns hex value, and must not already registered/used
+####################################################################
+mcu_host_groups:
+  - name: "halba-mcu-hg-1"
+    port: CL2-B
+    host_mode: "LINUX"
     wwns:
-    - 10005cba2cfc319d
-  - name: mcu-vol-jonnnn8
-    port: CL3-E
-    host_mode: LINUX
+    - wwn: "88786767ABCBDABC"
+  # - name: mcu-vol-jonnnn8
+  #   port: CL2-B
+  #   host_mode: LINUX
+  #   wwns:
+  #   - 99786767ABCBDABC
+
+rcu_host_groups: # just one hg
+  - name: "halba-rcu-hg-1"
+    port: CL2-B
+    host_mode: "LINUX"
     wwns:
-    - 10005cba2cfc319e
-copy_group_name: gad_jon8
+    - wwn: "88111767ABCBDABC"
 
 ####################################################################
-# Other Task-driven Variables
+# Storage Pools
 ####################################################################
-secondary_hg_name: rcu-jonathan__7
-secondary_port: CL1-A
+mcu_pool_name: "dummypool1"
+mcu_pool_type: HDP
+mcu_pool_vols_list:
+  - parity_group_id: 1-2
+    capacity: 60GB
+
+rcu_pool_name: jonamaypool_rcu_7
+rcu_pool_type: HDP
+rcu_pool_vols_list:
+  - parity_group_id: 1-1
+    capacity: 60GB
 
 ####################################################################
-# Resource and Copy Groups
+# Resource Groups
 ####################################################################
-rg_name: jonathan_rg__8
-virtual_serial_number: 60233
-vsm_model: VSP_5600H
+mcu_rg_name: "sn_vsm_vspone_b24"
+rcu_rg_name: "sn_vsm_vspone_b24"
+virtual_serial_number: "810044"
+vsm_model: "VSP One B24"
 
 ####################################################################
 # Quorum Configuration
 ####################################################################
-mcu_quorum_id: 2
-mcu_quorum_ldev: 29
-mcu_storage_type: R9
-rcu_quorum_id: 2
-rcu_quorum_ldev: 7424
-rcu_storage_type: R9
+mcu_quorum_id: 4
+mcu_quorum_ldev: 2808
+mcu_storage_type: M8
+rcu_quorum_id: 4
+rcu_quorum_ldev: 11313
+rcu_storage_type: M8
 
 ####################################################################
 # Connection and Environment
+# Make sure to check your current port connection lists
 ####################################################################
+path_group_id: 0
+
 mcu_remote_paths_list:
-  - local_port: CL1-E
-    remote_port: CL1-C
-  - local_port: CL3-E
-    remote_port: CL1-E
+  # - local_port: "CL5-A"
+  #   remote_port: "CL5-B"
+  # - local_port: "CL6-A"
+  #   remote_port: "CL6-B"
+  - local_port: "CL2-B"
+    remote_port: "CL2-B"
+
 rcu_remote_paths_list:
-  - local_port: CL1-C
-    remote_port: CL1-E
-  - local_port: CL1-E
-    remote_port: CL3-E
+  # - local_port: "CL5-B"
+  #   remote_port: "CL5-A"
+  # - local_port: "CL6-B"
+  #   remote_port: "CL6-A"
+  - local_port: "CL2-B"
+    remote_port: "CL2-B"
 
 ####################################################################
 # General and Miscellaneous Settings
 ####################################################################
-path_group_id: 0
-rcu_pool_name: jonamaypool_rcu_7
 
