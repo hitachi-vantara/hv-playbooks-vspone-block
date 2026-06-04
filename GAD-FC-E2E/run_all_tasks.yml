@@ -1,0 +1,82 @@
+---
+- name: End-to-End Complete GAD Provisioning Orchestrator
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info inherited by all included task sheets
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    # ==================================================================
+    # PHASE 1: REMOTE CONNECTION & FABRIC ALIGNMENT
+    # ==================================================================
+    - name: "=== STEP 1.1: Remote Connection Setup (Primary Array Context) ==="
+      ansible.builtin.include_tasks: step1_REMCON1.yml
+
+    - name: "=== STEP 1.2: Remote Connection Setup (Secondary Array Context) ==="
+      ansible.builtin.include_tasks: step1_REMCON2.yml
+
+    # ==================================================================
+    # PHASE 2: QUORUM DISK ALLOCATION
+    # ==================================================================
+    - name: "=== STEP 2.1: Quorum Disk Validation on MCU ==="
+      ansible.builtin.include_tasks: step2_QU1.yml
+
+    - name: "=== STEP 2.2: Quorum Disk Validation on RCU ==="
+      ansible.builtin.include_tasks: step2_QU2.yml
+
+    # ==================================================================
+    # PHASE 3: RESOURCE GROUP MIGRATION
+    # ==================================================================
+    - name: "=== STEP 3.1: Resource Group Alignment on MCU ==="
+      ansible.builtin.include_tasks: step3_RG1.yml
+
+    - name: "=== STEP 3.2: Resource Group Alignment on RCU ==="
+      ansible.builtin.include_tasks: step3_RG2.yml
+
+    # ==================================================================
+    # PHASE 4: STORAGE POOL CONFIGURATION
+    # ==================================================================
+    - name: "=== STEP 4.1: Storage Pool Verification on MCU ==="
+      ansible.builtin.include_tasks: step4_POOL1.yml
+
+    - name: "=== STEP 4.2: Storage Pool Verification on RCU ==="
+      ansible.builtin.include_tasks: step4_POOL2.yml
+
+    # ==================================================================
+    # PHASE 5: HOST GROUP PROVISIONING
+    # ==================================================================
+    - name: "=== STEP 5.1: Host Group Setup & Mapping on MCU ==="
+      ansible.builtin.include_tasks: step5_HG1.yml
+
+    - name: "=== STEP 5.2: Host Group Setup & Mapping on RCU ==="
+      ansible.builtin.include_tasks: step5_HG2.yml
+
+    # ==================================================================
+    # PHASE 6: LDEV CREATION & BLOCK VOLUMES
+    # ==================================================================
+    - name: "=== STEP 6: LDEV Allocation & Storage Binding ==="
+      ansible.builtin.include_tasks: step6_LDEV1.yml
+
+    # ==================================================================
+    # PHASE 7: GLOBAL ACTIVE DEVICE REPLICATION PAIRS
+    # ==================================================================
+    - name: "=== STEP 7: Create and Synchronize GAD Mirrors ==="
+      ansible.builtin.include_tasks: step7_GAD.yml
+
+    # ==================================================================
+    # PHASE 8: SUMMARY & VERIFICATION
+    # ==================================================================
+    - name: "=== STEP 8: Generate E2E Environment Deployment Summary ==="
+      ansible.builtin.include_tasks: step8_SUM.yml
