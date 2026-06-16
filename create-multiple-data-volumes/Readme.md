@@ -61,14 +61,14 @@ This generates an output file as shown below.
 #cat /tmp/ldev_creation_report_20250913_142203.txt 
 ===================== LDEV Creation Report ==================
 
-SN_"111111":
+MCU_LDEV:
 0: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 1: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 ...
 30: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 31: ["pool_id": 2, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 
-SN_"222222":
+RCU_LDEV:
 0: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 1: ["pool_id": 1, "provision_type": "CVS,HDP", "deduplication_compression_mode": "disabled", "capacity": "100.00GB" ]
 ...
