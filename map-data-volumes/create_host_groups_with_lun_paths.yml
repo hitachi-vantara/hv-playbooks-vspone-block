@@ -135,7 +135,7 @@
         port_ldevs: "{{ hg_ldev_map[hg_name] | default([]) }}"
         wwns_list:
           - wwn: "{{ wwn_value }}"
-            nick_name: "{{ hg_name }}_{{ port_name }}"
+            nickname: "{{ hg_name }}_{{ port_name }}"
       loop: "{{ structured_map.keys() }}"
       hitachivantara.vspone_block.vsp.hv_hg:
         connection_info: "{{ connection_info }}"
@@ -159,7 +159,7 @@
         port_ldevs: "{{ port_ldev_map[item] }}"
         wwns_list:
           - wwn: "{{ wwn_value }}"
-            nick_name: "{{ hg_name }}_{{ port_name }}"
+            nickname: "{{ hg_name }}_{{ port_name }}"
       loop: "{{ structured_map.keys() }}"
       hitachivantara.vspone_block.vsp.hv_hg:
         connection_info: "{{ connection_info }}"
