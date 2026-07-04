@@ -109,6 +109,11 @@ This playbook automates the creation of multiple Hitachi Universal Replicator (U
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-HUR-pairs/Readme.md) for more info.
 
+## Playbook: [Create Multiple GAD Pairs](create-multiple-GAD-pairs)
+This playbook automates the creation of multiple Global Active Device (GAD) pairs by accepting user inputs such as primary and secondary volume ranges, quorum disk, consistency group, and other configuration parameters. It is designed for large-scale active-active deployments and generates a consolidated report of all configured GAD pairs.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-GAD-pairs/Readme.md) for more info.
+
 ## Playbook: [GAD-FC-E2E ](GAD-FC-E2E )
 
 This playbook was created to automate the configuration of FC GAD pairs, ensuring consistent, efficient, and error-free deployment of active-active volume replication across the connected storage systems.
