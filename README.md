@@ -104,6 +104,11 @@ This playbook automates the creation of DP volumes and configuration of journal 
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-HUR-journals/Readme.md) for more info.
 
+## Playbook: [Create Multiple HUR Pairs](create-multiple-HUR-pairs)
+This playbook automates the creation of multiple Hitachi Universal Replicator (UR) pairs by accepting user inputs such as primary and secondary volume ranges, journal groups, and other replication parameters. It supports bulk HUR pair creation for large-scale environments and generates a consolidated report of all configured replication pairs.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-HUR-pairs/Readme.md) for more info.
+
 ## Playbook: [GAD-FC-E2E ](GAD-FC-E2E )
 
 This playbook was created to automate the configuration of FC GAD pairs, ensuring consistent, efficient, and error-free deployment of active-active volume replication across the connected storage systems.
