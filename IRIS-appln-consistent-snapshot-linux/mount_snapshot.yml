@@ -1,0 +1,229 @@
+---
+###############################################################################
+# Playbook : 03_mount_snapshot.yml
+#
+# Purpose:
+# Mount Application Consistent Snapshot on Secondary Server
+###############################################################################
+
+- name: Mount Snapshot Copy on Secondary Host
+  hosts: secondary
+  become: yes
+  gather_facts: no
+
+  tasks:
+
+###############################################################################
+# Phase Banner
+###############################################################################
+
+    - name: Phase 3 Banner
+      debug:
+        msg: |
+          ============================================================
+                      PHASE 3 OF 4
+                 Mount Recovery Snapshot Copy
+          ============================================================
+
+###############################################################################
+# Discover FC Hosts
+###############################################################################
+
+    - name: Discover Fibre Channel Hosts
+      find:
+        paths: /sys/class/fc_host
+        file_type: directory
+      register: fc_hosts
+
+###############################################################################
+# Issue LIP
+###############################################################################
+
+    - name: Issue LIP on all FC Hosts
+      shell: |
+        echo 1 > {{ item.path }}/issue_lip
+      loop: "{{ fc_hosts.files }}"
+      changed_when: true
+
+###############################################################################
+# Discover SCSI Hosts
+###############################################################################
+
+    - name: Discover SCSI Hosts
+      find:
+        paths: /sys/class/scsi_host
+        file_type: directory
+      register: scsi_hosts
+
+###############################################################################
+# Rescan SCSI
+###############################################################################
+
+    - name: Rescan all SCSI Hosts
+      shell: |
+        echo "- - -" > {{ item.path }}/scan
+      loop: "{{ scsi_hosts.files }}"
+      changed_when: true
+
+###############################################################################
+# Reload Multipath Service
+###############################################################################
+
+    - name: Reload multipath service
+      service:
+        name: multipathd
+        state: reloaded
+
+###############################################################################
+# Wait for udev to complete device discovery
+###############################################################################
+
+    - name: Wait for udev device discovery
+      command: udevadm settle
+      changed_when: false
+
+###############################################################################
+# Verify Multipath Maps
+###############################################################################
+
+    - name: Verify multipath maps
+      command: multipath -ll
+      register: multipath_output
+      changed_when: false
+###############################################################################
+# Discover LVM
+###############################################################################
+
+    - name: Scan Physical Volumes
+      command: pvscan
+      changed_when: false
+
+    - name: Scan Volume Groups
+      command: vgscan
+      changed_when: false
+
+###############################################################################
+# Activate Volume Groups
+###############################################################################
+
+    - name: Activate imported IRIS Volume Groups
+      shell: |
+        for vg in Iris_vg_DB Iris_vg_JNL Iris_vg_SYS
+        do
+            vgchange -ay $vg
+        done
+      register: vgchange
+      failed_when: false
+      changed_when: "'now active' in vgchange.stdout"
+
+###############################################################################
+# Verify Logical Volumes
+###############################################################################
+
+    - name: Verify Logical Volumes
+      command: lvs --noheadings
+      register: lvs_output
+      changed_when: false
+
+    - name: Validate Logical Volumes
+      assert:
+        that:
+          - "'Iris_DB' in lvs_output.stdout"
+          - "'Iris_JNL' in lvs_output.stdout"
+          - "'Iris_SYS' in lvs_output.stdout"
+        fail_msg: "IRIS Logical Volumes are not active."
+        success_msg: "All IRIS Logical Volumes activated."
+
+###############################################################################
+# Create Mount Points
+###############################################################################
+
+    - name: Ensure mount directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ db_mount }}"
+        - "{{ jnl_mount }}"
+        - "{{ sys_mount }}"
+
+###############################################################################
+# Mount Snapshot Volumes
+###############################################################################
+
+    - name: Mount System Volume
+      mount:
+        path: "{{ sys_mount }}"
+        src: "{{ sys_lv }}"
+        fstype: xfs
+        state: mounted
+
+    - name: Mount Database Volume
+      mount:
+        path: "{{ db_mount }}"
+        src: "{{ db_lv }}"
+        fstype: xfs
+        state: mounted
+
+    - name: Mount Journal Volume
+      mount:
+        path: "{{ jnl_mount }}"
+        src: "{{ jnl_lv }}"
+        fstype: xfs
+        state: mounted
+
+###############################################################################
+# Verify Mounts
+###############################################################################
+
+    - name: Verify mounted filesystems
+      shell: |
+        mount | egrep "{{ db_mount }}|{{ jnl_mount }}|{{ sys_mount }}"
+      register: mount_check
+      changed_when: false
+
+    - name: Validate mounted filesystems
+      assert:
+        that:
+          - mount_check.stdout != ""
+        fail_msg: "Snapshot filesystems failed to mount."
+        success_msg: "Snapshot filesystems mounted successfully."
+
+###############################################################################
+# Verify Capacity
+###############################################################################
+
+    - name: Verify mounted capacity
+      command:
+        argv:
+          - df
+          - -h
+          - "{{ db_mount }}"
+          - "{{ jnl_mount }}"
+          - "{{ sys_mount }}"
+      changed_when: false
+
+###############################################################################
+# Completion
+###############################################################################
+
+    - name: Phase 3 Completed
+      debug:
+        msg: |
+          ============================================================
+                     PHASE 3 COMPLETED SUCCESSFULLY
+          ============================================================
+
+            ✓ Snapshot LUNs Discovered
+
+            ✓ Multipath Refreshed
+
+            ✓ Volume Groups Imported
+
+            ✓ Logical Volumes Activated
+
+            ✓ Filesystems Mounted
+
+          Recovery copy is ready for Integrity Validation.
+
+          ============================================================

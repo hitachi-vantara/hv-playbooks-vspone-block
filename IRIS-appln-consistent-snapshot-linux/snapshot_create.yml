@@ -1,0 +1,214 @@
+---
+###############################################################################
+# Playbook : 02_snapshot_create.yml
+#
+# Purpose
+# --------
+# Create Application Consistent Snapshot for InterSystems IRIS
+# using Hitachi VSP One Block Snapshot Groups.
+#
+# Workflow
+#
+# 1. Create Snapshot Group
+# 2. Wait until PAIR
+# 3. Verify IRIS running
+# 4. Start BurstWriter workload
+# 5. Wait 2 minutes
+# 6. Verify snapshot exists
+# 7. Freeze IRIS
+# 8. Verify WDSUSPD=1
+# 9. Freeze XFS
+# 10. sync filesystem
+# 11. Split Snapshot Group
+# 12. Immediately Unfreeze XFS
+# 13. Thaw IRIS
+# 14. Verify WDSUSPD=0
+# 15. Verify Snapshot Group = PSUS
+###############################################################################
+
+- name: Create Application Consistent Snapshot
+  hosts: primary
+  become: yes
+  gather_facts: false
+
+  vars_files:
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Create Snapshot Group
+################################################################################
+#
+#    - name: Create Snapshot Group
+#      hitachivantara.vspone_block.vsp.hv_snapshot_group:
+#        connection_info: "{{ connection_info }}"
+#        state: present
+#        spec:
+#          snapshot_group_name: "{{ snapshot_group }}"
+#          wait_for_final_state: false
+#
+###############################################################################
+# Wait until PAIR
+###############################################################################
+    - name: Get Snapshot Group facts
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: snapshot_status
+
+    - name: Display Snapshot Facts
+      debug:
+        msg: "✔ Snapshot Group {{ snapshot_group }} discovered."
+###############################################################################
+# Verify IRIS
+###############################################################################
+
+    - name: Verify IRIS instance
+      command: iris list
+      register: irislist
+      changed_when: false
+
+    - debug:
+        var: irislist.stdout_lines
+
+###############################################################################
+# Start BurstWriter
+###############################################################################
+
+    - name: Start BurstWriter workload
+      shell: |
+        iris terminal {{ iris_instance }} -U{{ iris_namespace }} <<EOF
+        job ##class(MyApp.Schema.BurstWriter).BurstWriteFor(15)
+        halt
+        EOF
+      async: 900
+      poll: 0
+
+###############################################################################
+# Wait two minutes
+###############################################################################
+
+    - name: Wait 1 minutes for workload generation
+      pause:
+        minutes: 1
+
+###############################################################################
+# Verify Snapshot Exists
+###############################################################################
+
+    - name: Verify Snapshot Group exists
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: snapshot_exist
+
+###############################################################################
+# Freeze IRIS
+###############################################################################
+
+    - name: Freeze IRIS
+      command: iris freeze {{ iris_instance }}
+
+###############################################################################
+# Verify WDSUSPD=1
+###############################################################################
+
+    - name: Check WDSUSPD after Freeze
+      shell: |
+        iris stat {{ iris_instance }} | grep WDSUSPD | awk -F'[ ,]+' '{print $2}'
+      register: wdsuspd
+      retries: 10
+      delay: 2
+      until: wdsuspd.stdout == "1"
+      changed_when: false
+
+###############################################################################
+# Freeze XFS
+###############################################################################
+
+    - name: Freeze XFS filesystem
+      command: xfs_freeze -f {{ db_mount }}
+
+###############################################################################
+# Flush filesystem
+###############################################################################
+
+    - name: Flush filesystem buffers
+      command: sync
+
+###############################################################################
+# Split Snapshot Group
+###############################################################################
+
+    - name: Split Snapshot Group
+      hitachivantara.vspone_block.vsp.hv_snapshot_group:
+        connection_info: "{{ connection_info }}"
+        state: split
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+          wait_for_final_state: false
+
+###############################################################################
+# Immediately Unfreeze XFS
+###############################################################################
+
+    - name: Unfreeze XFS
+      command: xfs_freeze -u {{ db_mount }}
+
+###############################################################################
+# Thaw IRIS
+###############################################################################
+
+    - name: Thaw IRIS
+      command: iris thaw {{ iris_instance }}
+
+###############################################################################
+# Verify WDSUSPD=0
+###############################################################################
+
+    - name: Verify IRIS thawed
+      shell: |
+        iris stat {{ iris_instance }} | grep WDSUSPD | awk -F'[ ,]+' '{print $2}'
+      register: thawcheck
+      retries: 10
+      delay: 2
+      until: thawcheck.stdout == "0"
+      changed_when: false
+
+###############################################################################
+# Verify Snapshot Group reaches PSUS
+###############################################################################
+
+    - name: Get Snapshot Group Facts
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: snapshot_psus
+
+    - name: Show Snapshot Facts
+      debug:
+        msg: "✔ Snapshot Group {{ snapshot_group }} reached PSUS state."
+###############################################################################
+# Summary
+###############################################################################
+
+    - name: Snapshot completed
+      debug:
+        msg:
+          - "======================================="
+          - "Application Consistent Snapshot Created"
+          - "Snapshot Group : {{ snapshot_group }}"
+          - "Final Status   : PSUS"
+          - "======================================="

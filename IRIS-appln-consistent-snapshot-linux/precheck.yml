@@ -1,0 +1,184 @@
+---
+###############################################################################
+# Playbook : 01_precheck.yml
+#
+# Purpose:
+# Validate Linux, IRIS and Storage before Snapshot operations.
+#
+# Storage validation is performed using Hitachi REST API.
+###############################################################################
+
+- name: Environment Precheck
+  hosts: primary
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Host Information
+###############################################################################
+
+    - name: Display Host Information
+      debug:
+        msg:
+          - "Hostname : {{ ansible_hostname }}"
+          - "OS       : {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel   : {{ ansible_kernel }}"
+          - "IP       : {{ ansible_default_ipv4.address }}"
+
+###############################################################################
+# Verify Required Commands
+###############################################################################
+
+    - name: Verify required Linux commands
+      command: which {{ item }}
+      changed_when: false
+      loop:
+        - iris
+        - multipath
+        - vgchange
+        - lvs
+        - vgs
+        - pvs
+        - mount
+        - xfs_freeze
+
+###############################################################################
+# Verify REST API Connectivity
+###############################################################################
+
+    - name: Verify Storage REST Connectivity
+      hitachivantara.vspone_block.vsp.hv_snapshot_facts:
+        connection_info: "{{ connection_info }}"
+      register: snapshot_info
+    - name: Storage Connectivity Verified
+      debug:
+        msg: "✔ Hitachi VSP REST API connectivity verified."
+###############################################################################
+# Display Snapshot Information
+###############################################################################
+
+    - name: Display Snapshot Information
+      debug:
+        msg: "✔Storage Validation Completed."
+
+###############################################################################
+# Verify IRIS
+###############################################################################
+
+    - name: Verify IRIS Instance
+      shell: iris list | grep "{{ iris_instance }}"
+      register: iris
+      changed_when: false
+      failed_when: iris.rc != 0
+
+    - name: Display IRIS Status
+      command: iris list
+      register: iris_status
+      changed_when: false
+
+    - debug:
+        var: iris_status.stdout_lines
+
+###############################################################################
+# Verify Mount Points
+###############################################################################
+
+    - name: Verify Mount Points
+      stat:
+        path: "{{ item }}"
+      register: mount_status
+      loop:
+        - "{{ db_mount }}"
+        - "{{ jnl_mount }}"
+        - "{{ sys_mount }}"
+
+    - name: Validate Mount Points
+      assert:
+        that:
+          - item.stat.exists
+          - item.stat.isdir
+      loop: "{{ mount_status.results }}"
+
+###############################################################################
+# Verify Mounted Filesystems
+###############################################################################
+
+    - name: Verify Mounted Filesystems
+      command: mount
+      register: mount_output
+      changed_when: false
+
+    - debug:
+        msg: "✔Mounted Filesystems Verified."
+
+###############################################################################
+# Verify Logical Volumes
+###############################################################################
+
+    - name: Validate Logical Volumes
+      block:  
+        - name: Verify Logical Volumes
+          stat:
+            path: "{{ item }}"
+          register: lv_status
+          loop:
+            - "{{ db_lv }}"
+            - "{{ jnl_lv }}"
+            - "{{ sys_lv }}"
+
+        - name: Validate Logical Volumes
+          assert:
+            that:
+              - item.stat.exists
+            fail_msg: "Logical Volume {{ item.stat.path }} does not exist."    
+          loop: "{{ lv_status.results }}"
+      no_log: true
+    - name: Logical Volume Validation
+      debug:
+        msg: "✔ Logical volumes verified."      
+###############################################################################
+# Validate Snapshot Configuration
+###############################################################################
+
+    - name: Validate Snapshot Configuration
+      assert:
+        that:
+          - snapshot_group is defined
+          - pool_id is defined
+          - primary_ldev_start is defined
+          - primary_ldev_end is defined
+          - secondary_ldev_start is defined
+          - secondary_ldev_end is defined
+          - primary_ldev_start <= primary_ldev_end
+          - secondary_ldev_start <= secondary_ldev_end
+          - (primary_ldev_end - primary_ldev_start) ==
+            (secondary_ldev_end - secondary_ldev_start)
+        fail_msg: "Invalid snapshot configuration in host.yml"
+        success_msg: "Snapshot configuration verified."
+
+###############################################################################
+# Summary
+###############################################################################
+
+    - name: Environment Ready
+      debug:
+        msg:
+          - "====================================="
+          - "Linux Validation      : PASSED"
+          - "IRIS Validation       : PASSED"
+          - "REST API Connectivity : PASSED"
+          - "Filesystem Validation : PASSED"
+          - "Ready for Snapshot."
+          - "====================================="

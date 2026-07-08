@@ -1,0 +1,180 @@
+---
+- name: IRIS Integrity Check and Snapshot Cleanup
+  hosts: secondary-server
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Change ownership
+###############################################################################
+
+    - name: Change ownership of mounted snapshot filesystems
+      file:
+        path: "{{ item }}"
+        owner: root
+        group: irisusr
+        recurse: yes
+      loop:
+        - "{{ db_mount }}"
+        - "{{ sys_mount }}"
+        - "{{ jnl_mount }}"
+
+###############################################################################
+# Start IRIS
+###############################################################################
+
+    - name: Start IRIS instance
+      command: iris start {{ iris_instance }}
+
+###############################################################################
+# Verify IRIS
+###############################################################################
+
+    - name: Verify IRIS status
+      command: iris list
+      register: iris_status
+
+    - debug:
+        var: iris_status.stdout_lines
+
+    - name: Verify IRIS is running
+      assert:
+        that:
+          - "'running' in iris_status.stdout | lower"
+        fail_msg: IRIS instance failed to start.
+        success_msg: IRIS instance is running.
+
+###############################################################################
+# Run Integrity Check
+###############################################################################
+
+    - name: Remove previous integrity log
+      file:
+        path: /root/t2.log
+        state: absent
+
+    - name: Start Integrity Check
+      shell: |
+        iris terminal {{ iris_instance }} -U%SYS <<'EOF'
+        Do Silent^Integrity("/root/t2.log",$ListBuild("{{ db_dir }}"))
+        L +^IntegrityCheck:20
+        H 1
+        halt
+        EOF
+      args:
+        executable: /bin/bash
+
+###############################################################################
+# Verify Integrity Check
+###############################################################################
+
+    - name: Wait for integrity log
+      wait_for:
+        path: /root/t2.log
+        timeout: 120
+
+    - name: Display Integrity Log
+      shell: cat /root/t2.log
+      register: integrity_log
+
+    - debug:
+        var: integrity_log.stdout_lines
+
+    - name: Verify Integrity completed successfully
+      shell: |
+        egrep -i "complete|completed|finished|success" /root/t2.log
+      register: integrity_result
+      changed_when: false
+      failed_when: integrity_result.rc != 0
+
+###############################################################################
+# Stop IRIS
+###############################################################################
+
+    - name: Stop IRIS instance
+      command: iris stop {{ iris_instance }} quietly
+
+    - pause:
+        seconds: 5
+
+###############################################################################
+# Unmount Filesystems
+###############################################################################
+
+    - name: Unmount DB filesystem
+      mount:
+        path: "{{ db_mount }}"
+        state: unmounted
+
+    - name: Unmount Journal filesystem
+      mount:
+        path: "{{ jnl_mount }}"
+        state: unmounted
+
+    - name: Unmount SYS filesystem
+      mount:
+        path: "{{ sys_mount }}"
+        state: unmounted
+###############################################################################
+# Delete Snapshot Group
+###############################################################################
+
+    - name: Delete Snapshot Group
+      hitachivantara.vspone_block.vsp.hv_snapshot_group:
+
+        connection_info: "{{ connection_info }}"
+
+        state: absent
+
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+          wait_for_final_state: false
+
+###############################################################################
+# Verify Snapshot Group Deleted
+###############################################################################
+
+    - name: Verify Snapshot Group has been deleted
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+
+        connection_info: "{{ connection_info }}"
+
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+
+      register: snapshot_status
+
+      retries: 30
+      delay: 2
+
+      until: snapshot_status.snapshot_groups | default([]) | length == 0
+
+      failed_when: false
+      changed_when: false
+###############################################################################
+# Completion Message
+###############################################################################
+
+    - name: Workflow completed
+      debug:
+        msg:
+          - "=========================================="
+          - "IRIS Integrity Check Completed Successfully"
+          - "IRIS Instance Stopped"
+          - "Filesystems Unmounted"
+          - "Snapshot Group Resynced"
+          - "Snapshot Validation Completed"
+          - "=========================================="

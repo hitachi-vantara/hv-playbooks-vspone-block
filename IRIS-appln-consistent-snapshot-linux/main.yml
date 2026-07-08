@@ -1,0 +1,89 @@
+---
+###############################################################################
+# Hitachi Thin Image Advanced + InterSystems IRIS Application Consistency 
+###############################################################################
+
+- name: IRIS Application Consistency
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+
+    - name: Welcome Screen
+      pause:
+        prompt: |
+
+          =========================================================================================
+                IRIS DATABASE APPLICATION CONSISTENCY VALIDATION WITH HITACHI THIN IMAGE ADVANCED
+          ==========================================================================================
+
+          Solution Overview
+          -----------------
+            ► Database              : InterSystems IRIS
+            ► Snapshot Technology   : Thin Image Advanced (Cascade, CTG)
+            ► Consistency Method    : Application + Filesystem Freeze
+
+          Workflow
+          --------
+            [1] Environment Precheck
+            [2] Create Application Consistent Snapshot
+            [3] Mount Snapshot on Recovery Server
+            [4] Validate Recovery Copy
+            [5] Resynchronize Snapshot Group
+
+
+          =======================================================================
+          Press ENTER to start the workflow...
+          =======================================================================
+
+###############################################################################
+# Execute workflow
+###############################################################################
+
+- import_playbook: precheck.yml
+
+- import_playbook: snapshot_pair_creation.yml
+
+- import_playbook: snapshot_create.yml
+
+- import_playbook: mount_snapshot.yml
+
+- import_playbook: integrity_check_cleanup.yml
+
+###############################################################################
+# Completion
+###############################################################################
+
+- name: Workflow Completed
+  hosts: localhost
+  gather_facts: no
+
+  tasks:
+
+    - name: Display Completion Banner
+      pause:
+        prompt: |
+
+          =======================================================================
+                               WORKFLOW COMPLETED
+          =======================================================================
+
+             ✓ Environment Successfully Validated
+
+             ✓ Application Consistent Snapshot Created
+
+             ✓ Recovery Copy Successfully Mounted
+
+             ✓ InterSystems IRIS Integrity Check PASSED
+
+             ✓ Snapshot Successfully Resynchronized
+
+          -----------------------------------------------------------------------
+
+               Hitachi Thin Image Advanced successfully captured a transaction-
+               consistent InterSystems IRIS database without requiring
+               application downtime.
+
+          =======================================================================
+
+          Press ENTER to exit...
