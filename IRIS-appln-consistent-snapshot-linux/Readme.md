@@ -4,10 +4,10 @@ The playbook validates the environment, creates an application-consistent snapsh
 ## Solution Overview
 
 Storage Platform:		Hitachi VSP One Block High End
-Database:		InterSystems IRIS	
+Database:		        InterSystems IRIS	
 Operating System:		Red Hat Enterprise Linux
 Snapshot Technology:	Thin Image Advanced (Cascade, CTG)
-Consistency:		 Application + Filesystem Consistency
+Consistency:		    Application + Filesystem Consistency
 
 ## Configuration Diagram
 
@@ -44,31 +44,31 @@ Stop IRIS → Unmount Snapshot → Delete Snapshot
 ## Repository Structure
 
 IRIS_appln_consistency_playbook/
-│
-├── README.md                         # Project documentation
 
-├── ansible.cfg                       # Ansible configuration (centralized logging)
+  ├── README.md                         # Project documentation
 
-├── inventory.ini                     # Inventory containing primary and secondary hosts
+  ├── ansible.cfg                       # Ansible configuration (centralized logging)
 
-├── var.yml                           # Common variables used by all playbooks
+  ├── inventory.ini                     # Inventory containing primary and secondary hosts
 
-|── main.yml                       # Executes the complete end-to-end workflow
+  ├── var.yml                           # Common variables used by all playbooks
 
-├── precheck.yml                   # Environment validation
+  |── main.yml                       # Executes the complete end-to-end workflow
 
-├── snapshot_create.yml            # Create application-consistent TIA snapshot
+  ├── precheck.yml                   # Environment validation
 
-├── mount_snapshot.yml             # Mount snapshot volumes on secondary server
+  ├── snapshot_create.yml            # Create application-consistent TIA snapshot
 
-├── integrity_check.yml            # Start IRIS and run database integrity check
+  ├── mount_snapshot.yml             # Mount snapshot volumes on secondary server
 
-├── snapshot_delete.yml            # Stop IRIS, unmount volumes and delete snapshots
+  ├── integrity_check.yml            # Start IRIS and run database integrity check
 
-│
+  ├── snapshot_delete.yml            # Stop IRIS, unmount volumes and delete snapshots
 
-└── ansible_vault_vars/
-    └── ansible_vault_storage_var.yml # storage credentials
+  │
+
+  └── ansible_vault_vars/
+      └── ansible_vault_storage_var.yml # storage credentials
 
 ## Prerequisites
 
@@ -92,10 +92,6 @@ vault_storage_secret: <password>
 •	Thin Image Advanced licensed and configured
 •	Multipath and LVM configured on both hosts
 
-## Configuration
-
-### Storage Credentials
-Configure the storage connection in:	ansible_vault_vars/ansible_vault_storage_var.yml
 ### Environment Variables:
 Update the environment-specific configuration in: var.yml
 Typical variables include:
@@ -114,14 +110,17 @@ Typical variables include:
 ## Execution
 
 Run the complete workflow:
+```
 ansible-playbook -i inventory.ini main.yml
+```
 Or execute individual playbooks as required.
 
 ansible-playbook -i inventory.ini mount_snapshot.yml
 ## Logging
 
-Execution logs are written to the Ansible log configured in:	ansible.cfg
+Execution logs are written to the Ansible log configured in ansible.cfg
+```
 log_path = logs/application_consistency.log
-
+```
 ## Author
 Hitachi Vantara Solution Engineering
