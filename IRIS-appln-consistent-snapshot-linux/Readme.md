@@ -64,8 +64,6 @@ IRIS_appln_consistency_playbook/
 ├── mount_snapshot.yml           # Mount snapshot volumes on secondary server
 ├── integrity_check.yml          # Start IRIS and run database integrity check
 ├── snapshot_delete.yml          # Stop IRIS, unmount volumes, and delete snapshots
-└── ansible_vault_vars/
-    └── ansible_vault_storage_var.yml   # Storage credentials
 ```
 
 ## Prerequisites
@@ -78,13 +76,15 @@ IRIS_appln_consistency_playbook/
 ```
 ansible-galaxy collection install hitachivantara.vspone_block
 ```
-•	A standard variable file for storage credentials (“_ansible_vault_storage_var.yml_”) is created as shown below:
+•	A standard variable file for storage credentials (“_ansible_vault_vars_/_ansible_vault_storage_var.yml_”) is created as shown below:
 ```
 storage_serial: <primarySerialNumber>
 storage_address: <StorageManagementAddress>
 vault_storage_username: <username>
 vault_storage_secret: <password>
 ```
+•	An "_inventory.ini_" file with primary and secondary server information
+
 •	InterSystems IRIS installed on both hosts (same configuration)
 
 •	RHEL 8.x / 9.x
@@ -129,9 +129,11 @@ Run the complete workflow:
 ```
 ansible-playbook -i inventory.ini main.yml
 ```
-Or execute individual playbooks as required.
+Or execute individual playbook:
 
+```
 ansible-playbook -i inventory.ini mount_snapshot.yml
+```
 
 ## Logging
 
