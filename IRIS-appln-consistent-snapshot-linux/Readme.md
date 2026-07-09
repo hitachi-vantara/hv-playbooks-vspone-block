@@ -66,11 +66,7 @@ IRIS_appln_consistency_playbook/
 
 ## Prerequisites
 
-•	Ansible Control Node
-
-•	Hitachi VSP One Block
-
-•	Install Ansible collection with the Ansible Galaxy command-line tool:
+•	Install Ansible collection with the Ansible Galaxy command-line tool on Ansible control node.
 ```
 ansible-galaxy collection install hitachivantara.vspone_block
 ```
@@ -82,7 +78,17 @@ vault_storage_username: <username>
 vault_storage_secret: <password>
 ```
 •	An "_inventory.ini_" file with primary and secondary server information
-
+```
+[primary]
+primary-server ansible_host=172.23.x.x
+[secondary]
+secondary-server ansible_host=172.23.x.x
+ 
+[all:vars]
+ansible_user=root
+ansible_become=yes
+ansible_python_interpreter=/usr/bin/python3
+```
 •	InterSystems IRIS installed on both hosts (same configuration)
 
 •	RHEL 8.x / 9.x
