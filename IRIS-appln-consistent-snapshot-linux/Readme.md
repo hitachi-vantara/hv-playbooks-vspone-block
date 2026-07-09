@@ -135,7 +135,7 @@ ansible-playbook -i inventory.ini mount_snapshot.yml
 
 ## Logging
 
-Execution logs are written to the Ansible log configured in ansible.cfg
+Execution logs are written to the Ansible log configured in "_ansible.cfg_"
 ```
 log_path = logs/application_consistency.log
 ```
