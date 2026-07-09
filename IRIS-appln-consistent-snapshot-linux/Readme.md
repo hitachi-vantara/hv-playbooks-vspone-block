@@ -55,8 +55,6 @@ Stop IRIS → Unmount Snapshot → Delete Snapshot
 ```text
 IRIS_appln_consistency_playbook/
 ├── README.md                    # Project documentation
-├── ansible.cfg                  # Ansible configuration (centralized logging)
-├── inventory.ini                # Inventory containing primary and secondary hosts
 ├── var.yml                      # Common variables used by all playbooks
 ├── main.yml                     # Executes the complete end-to-end workflow
 ├── precheck.yml                 # Environment validation
