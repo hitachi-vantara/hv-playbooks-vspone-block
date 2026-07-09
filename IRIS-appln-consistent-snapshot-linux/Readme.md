@@ -104,7 +104,8 @@ ansible_python_interpreter=/usr/bin/python3
 
 ## Environment Variables
 
-Update the environment-specific configuration in “_var.yml_"
+Update the environment-specific configuration in “_var.yml_".
+
 A typical variable file includes
 
 • IRIS instance
