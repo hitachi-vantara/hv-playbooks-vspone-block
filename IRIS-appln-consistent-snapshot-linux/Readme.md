@@ -88,7 +88,8 @@ vault_storage_secret: <password>
 
 •	Multipath and LVM configured on both hosts
 
-### Environment Variables:
+## Environment Variables
+
 Update the environment-specific configuration in: var.yml
 Typical variables include:
 
