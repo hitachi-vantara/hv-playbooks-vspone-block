@@ -92,16 +92,25 @@ vault_storage_secret: <password>
 Update the environment-specific configuration in: var.yml
 Typical variables include:
 
-- IRIS instance
-- Namespace
-- Database directory
-- Mount points
-- Logical Volumes
-- Snapshot Group
-- Snapshot Pool ID
-- Mirror Unit
-- Primary LDEV Range
-- Secondary LDEV Range
+• IRIS instance
+
+• Namespace
+
+• Database directory
+
+• Mount points
+
+• Logical Volumes
+
+• Snapshot Group
+
+• Snapshot Pool ID
+
+• Mirror Unit
+
+• Primary LDEV Range
+
+• Secondary LDEV Range
 
 ## Execution
 
