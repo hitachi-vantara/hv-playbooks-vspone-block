@@ -106,7 +106,7 @@ ansible_python_interpreter=/usr/bin/python3
 
 Update the environment-specific configuration in “_var.yml_".
 
-A typical variable file includes
+A typical variable file includes:
 
 • IRIS instance
 
