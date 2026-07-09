@@ -46,17 +46,27 @@ Stop IRIS → Unmount Snapshot → Delete Snapshot
 IRIS_appln_consistency_playbook/
 │
 ├── README.md                         # Project documentation
+
 ├── ansible.cfg                       # Ansible configuration (centralized logging)
+
 ├── inventory.ini                     # Inventory containing primary and secondary hosts
+
 ├── var.yml                           # Common variables used by all playbooks
-│
-├── main.yml                       # Executes the complete end-to-end workflow
+
+|── main.yml                       # Executes the complete end-to-end workflow
+
 ├── precheck.yml                   # Environment validation
+
 ├── snapshot_create.yml            # Create application-consistent TIA snapshot
+
 ├── mount_snapshot.yml             # Mount snapshot volumes on secondary server
+
 ├── integrity_check.yml            # Start IRIS and run database integrity check
+
 ├── snapshot_delete.yml            # Stop IRIS, unmount volumes and delete snapshots
+
 │
+
 └── ansible_vault_vars/
     └── ansible_vault_storage_var.yml # storage credentials
 
