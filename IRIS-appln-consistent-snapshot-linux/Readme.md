@@ -1,11 +1,11 @@
-# InterSystems IRIS Application Consistency Automation With Hitachi Block Storage
+# InterSystems IRIS Application Consistency Automation with Hitachi Block Storage
 
 Ansible automation to create **application-consistent Thin Image Advanced (TIA) Cascade snapshots** of an **InterSystems IRIS** database running on **Red Hat Enterprise Linux (RHEL)**.
 The playbook validates the environment, creates an application-consistent snapshot, mounts the recovery copy on a secondary server, validates database integrity, and cleans up the snapshot environment.
 
 ## Solution Overview
 
-Storage Platform:		Hitachi Storage Systems
+Storage Platform:		Hitachi Block Storage Systems
 
 Database:		        InterSystems IRIS	
 
@@ -70,7 +70,7 @@ IRIS_appln_consistency_playbook/
 ```
 ansible-galaxy collection install hitachivantara.vspone_block
 ```
-•	A standard variable file for storage credentials (“_ansible_vault_vars_/_ansible_vault_storage_var.yml_”) is created as shown below:
+•	A standard variable file for storage credentials (“_ansible_vault_vars_/_ansible_vault_storage_var.yml_”) is created as shown below
 ```
 storage_serial: <primarySerialNumber>
 storage_address: <StorageManagementAddress>
@@ -133,7 +133,7 @@ Run the complete workflow:
 ```
 ansible-playbook -i inventory.ini main.yml
 ```
-Or execute individual playbook:
+Or execute individual playbook
 
 ```
 ansible-playbook -i inventory.ini mount_snapshot.yml
