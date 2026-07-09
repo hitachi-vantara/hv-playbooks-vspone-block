@@ -1,9 +1,11 @@
 # InterSystems IRIS Application Consistency Automation With Hitachi Block Storage
+
 Ansible automation to create **application-consistent Thin Image Advanced (TIA) Cascade snapshots** of an **InterSystems IRIS** database running on **Red Hat Enterprise Linux (RHEL)**.
 The playbook validates the environment, creates an application-consistent snapshot, mounts the recovery copy on a secondary server, validates database integrity, and cleans up the snapshot environment.
+
 ## Solution Overview
 
-Storage Platform:		Hitachi VSP One Block High End
+Storage Platform:		Hitachi Storage Systems
 Database:		        InterSystems IRIS	
 Operating System:		Red Hat Enterprise Linux
 Snapshot Technology:	Thin Image Advanced (Cascade, CTG)
@@ -11,6 +13,9 @@ Consistency:		    Application + Filesystem Consistency
 
 ## Configuration Diagram
 
+Below diagram depicts a standard IRIS database environment.
+
+![IRIS_configuration_diagram.png](./assets/IRIS_configuration_diagram.png)
 
 ## Workflow
 
