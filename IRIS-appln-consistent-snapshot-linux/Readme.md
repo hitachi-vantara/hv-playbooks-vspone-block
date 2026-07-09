@@ -134,7 +134,7 @@ Run the complete workflow:
 ```
 ansible-playbook -i inventory.ini main.yml
 ```
-Or execute individual playbook
+Or execute individual playbook:
 
 ```
 ansible-playbook -i inventory.ini mount_snapshot.yml
