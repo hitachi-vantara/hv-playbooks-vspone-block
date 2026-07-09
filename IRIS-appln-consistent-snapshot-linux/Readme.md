@@ -88,6 +88,7 @@ vault_storage_secret: <password>
 
 •	Multipath and LVM configured on both hosts
 
+
 ## Environment Variables
 
 Update the environment-specific configuration in: var.yml
@@ -122,6 +123,7 @@ ansible-playbook -i inventory.ini main.yml
 Or execute individual playbooks as required.
 
 ansible-playbook -i inventory.ini mount_snapshot.yml
+
 ## Logging
 
 Execution logs are written to the Ansible log configured in ansible.cfg
