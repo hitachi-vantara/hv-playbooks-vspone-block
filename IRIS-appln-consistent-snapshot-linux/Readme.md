@@ -62,7 +62,9 @@ IRIS_appln_consistency_playbook/
 ## Prerequisites
 
 •	Ansible Control Node
+
 •	Hitachi VSP One Block
+
 •	Install Ansible collection with the Ansible Galaxy command-line tool:
 ```
 ansible-galaxy collection install hitachivantara.vspone_block
