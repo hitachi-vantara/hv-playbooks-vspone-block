@@ -6,9 +6,13 @@ The playbook validates the environment, creates an application-consistent snapsh
 ## Solution Overview
 
 Storage Platform:		Hitachi Storage Systems
+
 Database:		        InterSystems IRIS	
+
 Operating System:		Red Hat Enterprise Linux
+
 Snapshot Technology:	Thin Image Advanced (Cascade, CTG)
+
 Consistency:		    Application + Filesystem Consistency
 
 ## Configuration Diagram
@@ -96,8 +100,8 @@ vault_storage_secret: <password>
 
 ## Environment Variables
 
-Update the environment-specific configuration in: var.yml
-Typical variables include:
+Update the environment-specific configuration in “_var.yml_"
+A typical variable file includes
 
 • IRIS instance
 
