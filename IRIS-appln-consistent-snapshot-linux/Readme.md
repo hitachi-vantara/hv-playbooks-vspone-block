@@ -77,10 +77,15 @@ vault_storage_username: <username>
 vault_storage_secret: <password>
 ```
 •	InterSystems IRIS installed on both hosts (same configuration)
+
 •	RHEL 8.x / 9.x
+
 •	SSH connectivity to primary and secondary servers
+
 •	REST API connectivity to the storage system
+
 •	Thin Image Advanced licensed and configured
+
 •	Multipath and LVM configured on both hosts
 
 ### Environment Variables:
