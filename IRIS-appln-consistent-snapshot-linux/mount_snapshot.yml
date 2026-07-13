@@ -6,134 +6,57 @@
 # Mount Application Consistent Snapshot on Secondary Server
 ###############################################################################
 
-- name: Mount Snapshot Copy on Secondary Host
+- name: Mount Snapshot on Validation Host
   hosts: secondary
   become: yes
   gather_facts: no
 
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
   tasks:
 
 ###############################################################################
-# Phase Banner
+# Discover SVOLs on Validation Host
 ###############################################################################
 
-    - name: Phase 3 Banner
-      debug:
-        msg: |
-          ============================================================
-                      PHASE 3 OF 4
-                 Mount Recovery Snapshot Copy
-          ============================================================
-
-###############################################################################
-# Discover FC Hosts
-###############################################################################
-
-    - name: Discover Fibre Channel Hosts
-      find:
-        paths: /sys/class/fc_host
-        file_type: directory
-      register: fc_hosts
-
-###############################################################################
-# Issue LIP
-###############################################################################
-
-    - name: Issue LIP on all FC Hosts
+    - name: Discover SVOLs on Validation Host
       shell: |
-        echo 1 > {{ item.path }}/issue_lip
-      loop: "{{ fc_hosts.files }}"
-      changed_when: true
+        # Discover Fibre Channel devices
+        for host in /sys/class/fc_host/host*; do
+          echo 1 > "${host}/issue_lip"
+        done
 
-###############################################################################
-# Discover SCSI Hosts
-###############################################################################
+        # Rescan SCSI hosts
+        for host in /sys/class/scsi_host/host*; do
+          echo "- - -" > "${host}/scan"
+        done
 
-    - name: Discover SCSI Hosts
-      find:
-        paths: /sys/class/scsi_host
-        file_type: directory
-      register: scsi_hosts
+        # Reload multipath
+        systemctl reload multipathd
 
-###############################################################################
-# Rescan SCSI
-###############################################################################
+        # Wait for devices to appear
+        sleep 60
+        udevadm settle
 
-    - name: Rescan all SCSI Hosts
-      shell: |
-        echo "- - -" > {{ item.path }}/scan
-      loop: "{{ scsi_hosts.files }}"
-      changed_when: true
+        # Discover LVM metadata
+        pvscan
+        vgscan
 
-###############################################################################
-# Reload Multipath Service
-###############################################################################
-
-    - name: Reload multipath service
-      service:
-        name: multipathd
-        state: reloaded
-
-###############################################################################
-# Wait for udev to complete device discovery
-###############################################################################
-
-    - name: Wait for udev device discovery
-      command: udevadm settle
-      changed_when: false
-
-###############################################################################
-# Verify Multipath Maps
-###############################################################################
-
-    - name: Verify multipath maps
-      command: multipath -ll
-      register: multipath_output
-      changed_when: false
-###############################################################################
-# Discover LVM
-###############################################################################
-
-    - name: Scan Physical Volumes
-      command: pvscan
-      changed_when: false
-
-    - name: Scan Volume Groups
-      command: vgscan
-      changed_when: false
-
-###############################################################################
-# Activate Volume Groups
-###############################################################################
-
-    - name: Activate imported IRIS Volume Groups
-      shell: |
+        # Activate imported IRIS volume groups
         for vg in Iris_vg_DB Iris_vg_JNL Iris_vg_SYS
         do
-            vgchange -ay $vg
+          vgchange -ay "$vg"
         done
-      register: vgchange
-      failed_when: false
-      changed_when: "'now active' in vgchange.stdout"
 
-###############################################################################
-# Verify Logical Volumes
-###############################################################################
-
-    - name: Verify Logical Volumes
-      command: lvs --noheadings
-      register: lvs_output
-      changed_when: false
-
-    - name: Validate Logical Volumes
-      assert:
-        that:
-          - "'Iris_DB' in lvs_output.stdout"
-          - "'Iris_JNL' in lvs_output.stdout"
-          - "'Iris_SYS' in lvs_output.stdout"
-        fail_msg: "IRIS Logical Volumes are not active."
-        success_msg: "All IRIS Logical Volumes activated."
-
+        # Verify logical volumes exist
+        lvs --noheadings | grep -q Iris_DB
+        lvs --noheadings | grep -q Iris_JNL
+        lvs --noheadings | grep -q Iris_SYS
+      args:
+        executable: /bin/bash
+      changed_when: true
 ###############################################################################
 # Create Mount Points
 ###############################################################################
@@ -173,57 +96,32 @@
         state: mounted
 
 ###############################################################################
-# Verify Mounts
+# Verify Mounted Filesystems
 ###############################################################################
 
-    - name: Verify mounted filesystems
+    - name: Verify Mounted Filesystems
       shell: |
-        mount | egrep "{{ db_mount }}|{{ jnl_mount }}|{{ sys_mount }}"
-      register: mount_check
-      changed_when: false
+        # Verify all required mount points exist
+        mount | egrep "{{ db_mount }}|{{ jnl_mount }}|{{ sys_mount }}" >/dev/null
 
-    - name: Validate mounted filesystems
-      assert:
-        that:
-          - mount_check.stdout != ""
-        fail_msg: "Snapshot filesystems failed to mount."
-        success_msg: "Snapshot filesystems mounted successfully."
-
-###############################################################################
-# Verify Capacity
-###############################################################################
-
-    - name: Verify mounted capacity
-      command:
-        argv:
-          - df
-          - -h
-          - "{{ db_mount }}"
-          - "{{ jnl_mount }}"
-          - "{{ sys_mount }}"
+        # Verify mounted capacity
+        df -h {{ db_mount }} {{ jnl_mount }} {{ sys_mount }}
+      args:
+        executable: /bin/bash
       changed_when: false
 
 ###############################################################################
-# Completion
+# Summary
 ###############################################################################
 
-    - name: Phase 3 Completed
+    - name: SVOL discovery Completed
       debug:
-        msg: |
-          ============================================================
-                     PHASE 3 COMPLETED SUCCESSFULLY
-          ============================================================
-
-            ✓ Snapshot LUNs Discovered
-
-            ✓ Multipath Refreshed
-
-            ✓ Volume Groups Imported
-
-            ✓ Logical Volumes Activated
-
-            ✓ Filesystems Mounted
-
-          Recovery copy is ready for Integrity Validation.
-
-          ============================================================
+        msg:
+          - "======================================="
+          - "SVOLs DISCOVERY COMPLETED SUCCESSFULLY"
+          - "Snapshot LUNs : Discovered"
+          - "Multipath     : Refreshed"
+          - "Volume Groups : Activated"
+          - "Filesystems   : Mounted"
+          - "Status        : Ready for Integrity Check"
+          - "======================================="

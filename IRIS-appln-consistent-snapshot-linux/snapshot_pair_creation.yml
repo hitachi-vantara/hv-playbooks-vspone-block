@@ -143,7 +143,7 @@
       debug:
         msg:
           - "===================================================="
-          - " Thin Image Advanced Snapshot Creation Completed"
+          - " Thin Image Advanced Snapshot Pair Creation Completed"
           - ""
           - " Snapshot Group : {{ snapshot_group }}"
           - " Pool ID        : {{ snapshot_pool_id }}"

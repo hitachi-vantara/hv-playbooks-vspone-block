@@ -4,26 +4,19 @@
 #
 # Purpose
 # --------
-# Create Application Consistent Snapshot for InterSystems IRIS
-# using Hitachi VSP One Block Snapshot Groups.
+# Create an Application Consistent Thin Image Advanced Snapshot
+# from an existing Snapshot Group.
 #
 # Workflow
 #
-# 1. Create Snapshot Group
-# 2. Wait until PAIR
-# 3. Verify IRIS running
-# 4. Start BurstWriter workload
-# 5. Wait 2 minutes
-# 6. Verify snapshot exists
-# 7. Freeze IRIS
-# 8. Verify WDSUSPD=1
-# 9. Freeze XFS
-# 10. sync filesystem
-# 11. Split Snapshot Group
-# 12. Immediately Unfreeze XFS
-# 13. Thaw IRIS
-# 14. Verify WDSUSPD=0
-# 15. Verify Snapshot Group = PSUS
+# 1. Verify Snapshot Group
+# 2. Verify IRIS Running
+# 3. Start BurstWriter Workload
+# 4. Wait 2 Minutes
+# 5. Prepare IRIS and Filesystem for Snapshot
+# 6. Split Snapshot Group
+# 7. Resume Database Operations
+# 8. Verify Snapshot Group reaches PSUS
 ###############################################################################
 
 - name: Create Application Consistent Snapshot
@@ -45,47 +38,30 @@
   tasks:
 
 ###############################################################################
-# Create Snapshot Group
-################################################################################
-#
-#    - name: Create Snapshot Group
-#      hitachivantara.vspone_block.vsp.hv_snapshot_group:
-#        connection_info: "{{ connection_info }}"
-#        state: present
-#        spec:
-#          snapshot_group_name: "{{ snapshot_group }}"
-#          wait_for_final_state: false
-#
+# Verify Snapshot Group
 ###############################################################################
-# Wait until PAIR
-###############################################################################
-    - name: Get Snapshot Group facts
+
+    - name: Verify Snapshot Group
       hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
         connection_info: "{{ connection_info }}"
         spec:
           snapshot_group_name: "{{ snapshot_group }}"
       register: snapshot_status
 
-    - name: Display Snapshot Facts
-      debug:
-        msg: "✔ Snapshot Group {{ snapshot_group }} discovered."
 ###############################################################################
 # Verify IRIS
 ###############################################################################
 
-    - name: Verify IRIS instance
+    - name: Verify IRIS Running
       command: iris list
       register: irislist
       changed_when: false
-
-    - debug:
-        var: irislist.stdout_lines
+      no_log: true
 
 ###############################################################################
 # Start BurstWriter
 ###############################################################################
-
-    - name: Start BurstWriter workload
+    - name: Start BurstWriter Workload
       shell: |
         iris terminal {{ iris_instance }} -U{{ iris_namespace }} <<EOF
         job ##class(MyApp.Schema.BurstWriter).BurstWriteFor(15)
@@ -94,58 +70,34 @@
       async: 900
       poll: 0
 
-###############################################################################
-# Wait two minutes
-###############################################################################
-
-    - name: Wait 1 minutes for workload generation
-      pause:
-        minutes: 1
-
-###############################################################################
-# Verify Snapshot Exists
-###############################################################################
-
-    - name: Verify Snapshot Group exists
-      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
-        connection_info: "{{ connection_info }}"
-        spec:
-          snapshot_group_name: "{{ snapshot_group }}"
-      register: snapshot_exist
-
-###############################################################################
-# Freeze IRIS
-###############################################################################
-
-    - name: Freeze IRIS
-      command: iris freeze {{ iris_instance }}
-
-###############################################################################
-# Verify WDSUSPD=1
-###############################################################################
-
-    - name: Check WDSUSPD after Freeze
-      shell: |
-        iris stat {{ iris_instance }} | grep WDSUSPD | awk -F'[ ,]+' '{print $2}'
-      register: wdsuspd
-      retries: 10
-      delay: 2
-      until: wdsuspd.stdout == "1"
+    - name: Wait for Workload Generation
+      shell: sleep 120
       changed_when: false
-
 ###############################################################################
-# Freeze XFS
-###############################################################################
-
-    - name: Freeze XFS filesystem
-      command: xfs_freeze -f {{ db_mount }}
-
-###############################################################################
-# Flush filesystem
+# Freeze IRIS, Freeze Filesystem and Flush Data to Disk
 ###############################################################################
 
-    - name: Flush filesystem buffers
-      command: sync
+    - name: Prepare IRIS and Filesystem for snapshot
+      shell: |
+        iris freeze {{ iris_instance }}
+
+        for i in {1..10}
+        do
+          status=$(iris stat {{ iris_instance }} | awk -F'[ ,]+' '/WDSUSPD/ {print $2}')
+          [ "$status" = "1" ] && break
+          sleep 2
+        done
+
+        if [ "$status" != "1" ]; then
+          echo "IRIS Freeze failed."
+          exit 1
+        fi
+
+        xfs_freeze -f {{ db_mount }}
+
+        sync
+      args:
+        executable: /bin/bash
 
 ###############################################################################
 # Split Snapshot Group
@@ -160,55 +112,49 @@
           wait_for_final_state: false
 
 ###############################################################################
-# Immediately Unfreeze XFS
+# Resume Database Operations
 ###############################################################################
 
-    - name: Unfreeze XFS
-      command: xfs_freeze -u {{ db_mount }}
-
-###############################################################################
-# Thaw IRIS
-###############################################################################
-
-    - name: Thaw IRIS
-      command: iris thaw {{ iris_instance }}
-
-###############################################################################
-# Verify WDSUSPD=0
-###############################################################################
-
-    - name: Verify IRIS thawed
+    - name: Resume Database Operations
       shell: |
-        iris stat {{ iris_instance }} | grep WDSUSPD | awk -F'[ ,]+' '{print $2}'
-      register: thawcheck
-      retries: 10
-      delay: 2
-      until: thawcheck.stdout == "0"
-      changed_when: false
+        xfs_freeze -u {{ db_mount }}
+
+        iris thaw {{ iris_instance }}
+
+        for i in {1..10}
+        do
+          status=$(iris stat {{ iris_instance }} | awk -F'[ ,]+' '/WDSUSPD/ {print $2}')
+          [ "$status" = "0" ] && break
+          sleep 2
+        done
+
+        if [ "$status" != "0" ]; then
+          echo "IRIS Thaw failed."
+          exit 1
+        fi
+      args:
+        executable: /bin/bash
 
 ###############################################################################
-# Verify Snapshot Group reaches PSUS
+# Verify Snapshot Status
 ###############################################################################
 
-    - name: Get Snapshot Group Facts
+    - name: Verify Snapshot Group Status
       hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
         connection_info: "{{ connection_info }}"
         spec:
           snapshot_group_name: "{{ snapshot_group }}"
       register: snapshot_psus
 
-    - name: Show Snapshot Facts
-      debug:
-        msg: "✔ Snapshot Group {{ snapshot_group }} reached PSUS state."
 ###############################################################################
 # Summary
 ###############################################################################
 
-    - name: Snapshot completed
+    - name: Snapshot Completed
       debug:
         msg:
           - "======================================="
           - "Application Consistent Snapshot Created"
           - "Snapshot Group : {{ snapshot_group }}"
-          - "Final Status   : PSUS"
+          - "Status         : PSUS"
           - "======================================="

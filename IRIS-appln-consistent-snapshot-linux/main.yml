@@ -29,7 +29,7 @@
             [2] Create Application Consistent Snapshot
             [3] Mount Snapshot on Recovery Server
             [4] Validate Recovery Copy
-            [5] Resynchronize Snapshot Group
+            [5] Snapshot Cleanup
 
 
           =======================================================================
@@ -76,7 +76,7 @@
 
              ✓ InterSystems IRIS Integrity Check PASSED
 
-             ✓ Snapshot Successfully Resynchronized
+             ✓ Snapshot Cleanup Completed
 
           -----------------------------------------------------------------------
 

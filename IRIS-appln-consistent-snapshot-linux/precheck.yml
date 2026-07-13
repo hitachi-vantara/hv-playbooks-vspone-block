@@ -4,7 +4,6 @@
 #
 # Purpose:
 # Validate Linux, IRIS and Storage before Snapshot operations.
-#
 # Storage validation is performed using Hitachi REST API.
 ###############################################################################
 
@@ -16,6 +15,7 @@
   vars_files:
     - ansible_vault_vars/ansible_vault_storage_var.yml
     - var.yml
+
   vars:
 
     connection_info:
@@ -26,128 +26,79 @@
   tasks:
 
 ###############################################################################
-# Host Information
+# Environment Information
 ###############################################################################
 
-    - name: Display Host Information
+    - name: Environment Information
       debug:
         msg:
+          - "======================================="
+          - "ENVIRONMENT PRECHECK"
           - "Hostname : {{ ansible_hostname }}"
           - "OS       : {{ ansible_distribution }} {{ ansible_distribution_version }}"
           - "Kernel   : {{ ansible_kernel }}"
           - "IP       : {{ ansible_default_ipv4.address }}"
+          - "======================================="
 
 ###############################################################################
-# Verify Required Commands
+# Verify Required Linux Commands
 ###############################################################################
 
-    - name: Verify required Linux commands
-      command: which {{ item }}
+    - name: Verify Required Linux Commands
+      shell: |
+        for cmd in iris multipath vgchange lvs vgs pvs mount xfs_freeze
+        do
+          command -v $cmd >/dev/null || exit 1
+        done
       changed_when: false
-      loop:
-        - iris
-        - multipath
-        - vgchange
-        - lvs
-        - vgs
-        - pvs
-        - mount
-        - xfs_freeze
+      no_log: true
 
 ###############################################################################
-# Verify REST API Connectivity
+# Verify Storage REST Connectivity
 ###############################################################################
 
     - name: Verify Storage REST Connectivity
       hitachivantara.vspone_block.vsp.hv_snapshot_facts:
         connection_info: "{{ connection_info }}"
-      register: snapshot_info
-    - name: Storage Connectivity Verified
-      debug:
-        msg: "✔ Hitachi VSP REST API connectivity verified."
-###############################################################################
-# Display Snapshot Information
-###############################################################################
-
-    - name: Display Snapshot Information
-      debug:
-        msg: "✔Storage Validation Completed."
-
-###############################################################################
-# Verify IRIS
-###############################################################################
-
-    - name: Verify IRIS Instance
-      shell: iris list | grep "{{ iris_instance }}"
-      register: iris
-      changed_when: false
-      failed_when: iris.rc != 0
-
-    - name: Display IRIS Status
-      command: iris list
-      register: iris_status
-      changed_when: false
-
-    - debug:
-        var: iris_status.stdout_lines
-
-###############################################################################
-# Verify Mount Points
-###############################################################################
-
-    - name: Verify Mount Points
-      stat:
-        path: "{{ item }}"
-      register: mount_status
-      loop:
-        - "{{ db_mount }}"
-        - "{{ jnl_mount }}"
-        - "{{ sys_mount }}"
-
-    - name: Validate Mount Points
-      assert:
-        that:
-          - item.stat.exists
-          - item.stat.isdir
-      loop: "{{ mount_status.results }}"
-
-###############################################################################
-# Verify Mounted Filesystems
-###############################################################################
-
-    - name: Verify Mounted Filesystems
-      command: mount
-      register: mount_output
-      changed_when: false
-
-    - debug:
-        msg: "✔Mounted Filesystems Verified."
-
-###############################################################################
-# Verify Logical Volumes
-###############################################################################
-
-    - name: Validate Logical Volumes
-      block:  
-        - name: Verify Logical Volumes
-          stat:
-            path: "{{ item }}"
-          register: lv_status
-          loop:
-            - "{{ db_lv }}"
-            - "{{ jnl_lv }}"
-            - "{{ sys_lv }}"
-
-        - name: Validate Logical Volumes
-          assert:
-            that:
-              - item.stat.exists
-            fail_msg: "Logical Volume {{ item.stat.path }} does not exist."    
-          loop: "{{ lv_status.results }}"
+      register: storage_info
       no_log: true
-    - name: Logical Volume Validation
-      debug:
-        msg: "✔ Logical volumes verified."      
+
+###############################################################################
+# Verify IRIS Instance
+###############################################################################
+
+    - name: Verify IRIS Environment
+      shell: |
+        iris list | grep "{{ iris_instance }}"
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Validate Mount Points and Logical Volumes
+###############################################################################
+
+    - name: Validate Mount Points and Logical Volumes
+      shell: |
+        # Verify Mount Points
+        for dir in "{{ db_mount }}" "{{ jnl_mount }}" "{{ sys_mount }}"
+        do
+            [ -d "$dir" ] || { echo "Missing mount point: $dir"; exit 1; }
+        done
+
+        # Verify Logical Volumes
+        for lv in "{{ db_lv }}" "{{ jnl_lv }}" "{{ sys_lv }}"
+        do
+            [ -b "$lv" ] || { echo "Missing logical volume: $lv"; exit 1; }
+        done
+
+        # Verify Mounted Filesystems
+        mount | grep "{{ db_mount }}" >/dev/null || exit 1
+        mount | grep "{{ jnl_mount }}" >/dev/null || exit 1
+        mount | grep "{{ sys_mount }}" >/dev/null || exit 1
+
+      changed_when: false
+      no_log: true
+
 ###############################################################################
 # Validate Snapshot Configuration
 ###############################################################################
@@ -163,10 +114,9 @@
           - secondary_ldev_end is defined
           - primary_ldev_start <= primary_ldev_end
           - secondary_ldev_start <= secondary_ldev_end
-          - (primary_ldev_end - primary_ldev_start) ==
-            (secondary_ldev_end - secondary_ldev_start)
-        fail_msg: "Invalid snapshot configuration in host.yml"
-        success_msg: "Snapshot configuration verified."
+          - (primary_ldev_end - primary_ldev_start) == (secondary_ldev_end - secondary_ldev_start)
+        fail_msg: "Invalid snapshot configuration in var.yml"
+      no_log: true
 
 ###############################################################################
 # Summary
@@ -175,10 +125,12 @@
     - name: Environment Ready
       debug:
         msg:
-          - "====================================="
+          - "======================================="
+          - "ENVIRONMENT PRECHECK COMPLETED"
           - "Linux Validation      : PASSED"
           - "IRIS Validation       : PASSED"
           - "REST API Connectivity : PASSED"
           - "Filesystem Validation : PASSED"
-          - "Ready for Snapshot."
-          - "====================================="
+          - "Snapshot Config       : PASSED"
+          - "Status                : READY"
+          - "======================================="
