@@ -58,10 +58,10 @@ IRIS_appln_consistency_playbook/
 ├── var.yml                      # Common variables used by all playbooks
 ├── main.yml                     # Executes the complete end-to-end workflow
 ├── precheck.yml                 # Environment validation
+├── snapshot_pair_creation.yml   # Create TIA pair with cascade CTG 
 ├── snapshot_create.yml          # Create application-consistent TIA snapshot
 ├── mount_snapshot.yml           # Mount snapshot volumes on secondary server
-├── integrity_check.yml          # Start IRIS and run database integrity check
-├── snapshot_delete.yml          # Stop IRIS, unmount volumes, and delete snapshots
+├── integrity_check_cleanup.yml  # Start IRIS, run user database integrity check, and perform cleanup
 ```
 
 ## Prerequisites
