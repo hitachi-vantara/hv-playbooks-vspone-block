@@ -1,0 +1,52 @@
+---
+# ###################################################################
+# Example : Multiple boot ldevs creation playbook
+# Note - Update the pool id, ldev size, number of ldevs and base name based on your 
+#        deployment requirements.
+# Post execution run day0_vsp_one_ldevs_facts.yml
+# ###################################################################
+- name: Multi Logical Device Creation Module
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Multiple boot ldevs creation with capacity saving
+    ####################################################################
+    - name: Create multiple boot ldevs with capacity saving
+      hitachivantara.vspone_block.vsp.hv_ldev_bulk:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          pool_id: 50
+          size: "200GB"
+          capacity_saving: "compression_deduplication"
+          data_reduction_share: true
+          number_of_ldevs: 4
+          names:
+            base_name: "Boot_Device_ESXi-"
+            start_number: 50
+            number_of_digits: 3
+      register: result
+
+   
+    ####################################################################
+    # Debug
+    ####################################################################
+    - name: Summary of created ldevs
+      ansible.builtin.debug:
+        var: result
+
+
+
+ 

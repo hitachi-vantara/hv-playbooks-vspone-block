@@ -1,0 +1,88 @@
+---
+# ###################################################################
+# Example : VSP One Port Playbook
+# Note - Verify the correct port ids are configured for your deployment
+# Post playbook execution: run playbook day0_vsp_one_ports_facts.yml to confirm the updates
+# ************************************************************************************************
+# NOTE - B85 CVD will use ports CL3-A, CL2-A, CL3-B, and CL2-B. Update the playbook when ready to run.
+#      - Alternate set of ports was used for development and QA testing
+# ************************************************************************************************
+# ###################################################################
+- name: VSP One Port Module
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    # ###################################################################
+    # Task Name : Configure basic port settings (port security and speed)
+    # ###################################################################
+    - name: Configure basic port settings (port security and speed) CL3-A
+      hitachivantara.vspone_block.vsp.hv_vsp_one_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port_id: "CL3-A"
+          port_speed_in_gbps: 32
+          enable_port_security: true
+
+      register: result_cl3_a
+    - name: Debug the result variable CL3-A
+      ansible.builtin.debug:
+        var: result_cl3_a
+
+    # ###################################################################
+    # Task Name : Configure basic port settings (port security and speed)
+    # ###################################################################
+    - name: Configure basic port settings (port security and speed) CL3-B
+      hitachivantara.vspone_block.vsp.hv_vsp_one_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port_id: "CL3-B"
+          port_speed_in_gbps: 32
+          enable_port_security: true
+
+      register: result_cl3_b
+    - name: Debug the result variable CL3-B
+      ansible.builtin.debug:
+        var: result_cl3_b
+
+    # ###################################################################
+    # Task Name : Configure basic port settings (port security and speed)
+    # ###################################################################
+    - name: Configure basic port settings (port security and speed) CL4-A
+      hitachivantara.vspone_block.vsp.hv_vsp_one_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port_id: "CL4-A"
+          port_speed_in_gbps: 32
+          enable_port_security: true
+
+      register: result_cl4_a
+    - name: Debug the result variable CL4-A
+      ansible.builtin.debug:
+        var: result_cl4_a
+
+    # ###################################################################
+    # Task Name : Configure basic port settings (port security and speed)
+    # ###################################################################
+    - name: Configure basic port settings (port security and speed) CL4-B
+      hitachivantara.vspone_block.vsp.hv_vsp_one_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port_id: "CL4-B"
+          port_speed_in_gbps: 32
+          enable_port_security: true
+
+      register: result_cl4_b
+    - name: Debug the result variable CL4-B
+      ansible.builtin.debug:
+        var: result_cl4_b

@@ -1,0 +1,139 @@
+---
+# ###################################################################
+# Example : VSP One Server Playbook
+# Update the playbook based on your deployment configuration
+# ************************************************************************************************
+# NOTE - B85 will use ports CL1-A, CL2-A, CL1-B, and CL2-B. Update the playbook when ready to test
+#      - Update host nickname and hbas based on your deployment requirements
+# ************************************************************************************************
+# Post execution run day0_vsp_one_server_facts.yml
+# ###################################################################
+- name: VSP One Server Module
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Register server with multiple HBAs and paths configuration
+    # Note - Update the nickname, wwns and port ids based on your deployment
+    # Note - wwwn must be in lower case.
+    ####################################################################
+    - name: Register server with multiple HBAs and paths configuration UCS-ESXi-050
+      hitachivantara.vspone_block.vsp.hv_vsp_one_server:
+        state: present
+        connection_info: "{{ connection_info }}"
+        spec:
+          nickname: "UCS-ESXi-050"
+          protocol: "FC"
+          os_type: "VMware"
+          os_type_options: [54, 63, 68, 110]
+          hbas:
+            - hba_wwn: "20000025b5210a32"
+            - hba_wwn: "20000025b5210b32"
+          paths:
+            - port_ids: ["CL3-A", "CL4-A"]
+              hba_wwn: "20000025b5210a32"
+            - port_ids: ["CL3-B", "CL4-B"]
+              hba_wwn: "20000025b5210b32"
+      register: result_UCS_ESXi_050
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_050
+
+    ####################################################################
+    # Task Name : Register server with multiple HBAs and paths configuration
+    # Note - Update the nickname, wwns and port ids based on your deployment
+    ####################################################################
+    - name: Register server with multiple HBAs and paths configuration UCS-ESXi-051
+      hitachivantara.vspone_block.vsp.hv_vsp_one_server:
+        state: present
+        connection_info: "{{ connection_info }}"
+        spec:
+          nickname: "UCS-ESXi-051"
+          protocol: "FC"
+          os_type: "VMware"
+          os_type_options: [54, 63, 68, 110]
+          hbas:
+            - hba_wwn: "20000025b5210a33"
+            - hba_wwn: "20000025b5210b33"
+          paths:
+            - port_ids: ["CL3-A", "CL4-A"]
+              hba_wwn: "20000025b5210a33"
+            - port_ids: ["CL3-B", "CL4-B"]
+              hba_wwn: "20000025b5210b33"
+      register: result_UCS_ESXi_051
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_051
+
+    ####################################################################
+    # Task Name : Register server with multiple HBAs and paths configuration
+    # Note - Update the nickname, wwns and port ids based on your deployment
+    ####################################################################
+    - name: Register server with multiple HBAs and paths configuration UCS-ESXi-052
+      hitachivantara.vspone_block.vsp.hv_vsp_one_server:
+        state: present
+        connection_info: "{{ connection_info }}"
+        spec:
+          nickname: "UCS-ESXi-052"
+          protocol: "FC"
+          os_type: "VMware"
+          os_type_options: [54, 63, 68, 110]
+          hbas:
+            - hba_wwn: "20000025b5210a34"
+            - hba_wwn: "20000025b5210b34"
+          paths:
+            - port_ids: ["CL3-A", "CL4-A"]
+              hba_wwn: "20000025b5210a34"
+            - port_ids: ["CL3-B", "CL4-B"]
+              hba_wwn: "20000025b5210b34"
+      register: result_UCS_ESXi_052
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_052
+
+    ####################################################################
+    # Task Name : Register server with multiple HBAs and paths configuration
+    # Note - Update the nickname, wwns and port ids based on your deployment
+    ####################################################################
+    - name: Register server with multiple HBAs and paths configuration UCS-ESXi-053
+      hitachivantara.vspone_block.vsp.hv_vsp_one_server:
+        state: present
+        connection_info: "{{ connection_info }}"
+        spec:
+          nickname: "UCS-ESXi-053"
+          protocol: "FC"
+          os_type: "VMware"
+          os_type_options: [54, 63, 68, 110]
+          hbas:
+            - hba_wwn: "20000025b5210a35"
+            - hba_wwn: "20000025b5210b35"
+          paths:
+            - port_ids: ["CL3-A", "CL4-A"]
+              hba_wwn: "20000025b5210a35"
+            - port_ids: ["CL3-B", "CL4-B"]
+              hba_wwn: "20000025b5210b35"
+      register: result_UCS_ESXi_053
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_053
+
+
+
+
+
+  

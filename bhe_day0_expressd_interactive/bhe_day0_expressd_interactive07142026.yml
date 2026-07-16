@@ -1,0 +1,239 @@
+---
+# ###################################################################
+# Example : VSP One BHE Express Deployment Playbook
+# This example master playbook is only for Day 0 storage configuration
+# ###################################################################
+#  Cisco and HV CVD development testbed.  The playbook tasks for creating
+#  a parity pool has been optimized based on the hardware configuration of the
+#  B85 used in the CVD development testbed.
+# This example playbook be modified by the customer based on their B85
+#  hardware configuration and their storage deployment requirements.
+# This example playbook should be read and understood before running it.
+#
+# Update the ports section to use either the CVD or Intersight Ports.
+# ###################################################################
+# ###################################################################
+
+# Prerequisites : ***************************************************
+# Raidcom commands succesfuly completed to create two parity groups on the B85.
+# Sample file b24_expressd_interactive_prompt_check.yml must be in the same
+# directory as this playbook.
+# ###################################################################
+# ###################################################################
+
+# Interactive prompts can be used to enter the following variables:
+# Will have to add logic to limit the type of input values,
+# alpha, numeric, lower case, upper case, - , _ ...
+# 1. Array userid
+# 2. Array password
+# 3. FC port speed
+# 4. Boot Ldev Size (GB)
+# 5. Enter Shared Ldev size (GB)
+# 6. Enter pool id
+# 7. Storage pool name
+# 8. Enter boot ldev basename
+
+# ###################################################################
+# Fast fail has been enabled. Execution will stop if any playbook fails.
+# ###################################################################
+
+# =========================================================
+# PLAY 1: INPUT + VALIDATION
+# =========================================================
+- hosts: localhost
+  gather_facts: false
+  any_errors_fatal: true
+
+  vars:
+    default_port_speed: "32"
+    default_boot_size: "200GB"
+    default_shared_size: "10000GB"
+    default_id: "2"
+    default_name: "UCS_Pool2"
+    default_basename: "Boot_Device_ESXi-"
+
+  tasks:
+
+    # =====================================================
+    # DEPLOYMENT BANNER
+    # =====================================================
+    - name: Display deployment banner
+      pause:
+        prompt: |
+          
+          ============================================================
+          Hitachi Vantara VSP One Block Express Deployment
+          Day 0 Storage Configuration. (Press enter to continue)
+          ============================================================
+
+    # =====================================================
+    # STORAGE ADDRESS
+    # =====================================================
+    - name: Prompt for storage address
+      include_tasks: bhe_day0_vsp_one_expressd_prompt_check.yml
+
+    - name: Confirm storage address
+      debug:
+        msg: "Using storage address: {{ storage_address }}"
+
+    # =====================================================
+    # USERNAME + PASSWORD 
+    # =====================================================
+    - name: Prompt for credentials
+      block:
+
+        - pause:
+            prompt: "Enter storage username"
+          register: user_input
+
+        - pause:
+            prompt: "Enter storage password"
+            echo: no
+          register: pass_input
+
+        - set_fact:
+            vault_storage_username: "{{ user_input.user_input | trim }}"
+            vault_storage_secret: "{{ pass_input.user_input | trim }}"
+
+    # =====================================================
+    # STORAGE POOL ID
+    # =====================================================
+    - name: Prompt for storage pool id
+      block:
+        - pause:
+            prompt: "Enter storage pool id [default: {{ default_id }}]"
+          register: input
+
+        - set_fact:
+            id: "{{ input.user_input | trim | default(default_id, true) }}"
+
+        - assert:
+            that:
+              - id is match("^[0-9]+$")
+              - (id | int) >= 0
+              - (id | int) <= 127
+
+    - name: Normalize pool id
+      set_fact:
+        pool_id: "{{ id }}"
+
+    # =====================================================
+    # STORAGE POOL NAME
+    # =====================================================
+    - name: Prompt for storage pool name
+      block:
+        - pause:
+            prompt: "Enter storage pool name [default: {{ default_name }}]"
+          register: input
+
+        - set_fact:
+            name: "{{ input.user_input | trim | default(default_name, true) }}"
+
+        - assert:
+            that:
+              - name is match("^[A-Za-z][A-Za-z0-9_-]*$")
+              - name | length <= 32
+
+    # =====================================================
+    # BOOT LDEV PREFIX
+    # =====================================================
+    - name: Prompt for boot ldev prefix
+      block:
+        - pause:
+            prompt: "Enter boot ldev prefix [default: {{ default_basename }}]"
+          register: input
+
+        - set_fact:
+            basename: "{{ input.user_input | trim | default(default_basename, true) }}"
+
+        - assert:
+            that:
+              - basename is match("^[A-Za-z][A-Za-z0-9_-]*$")
+              - basename | length <= 27
+
+    # =====================================================
+    # PORT SPEED
+    # =====================================================
+    - name: Prompt for port speed
+      block:
+        - pause:
+            prompt: "Enter FC port speed (16,32,64) [default: {{ default_port_speed }}]"
+          register: input
+
+        - set_fact:
+            port_speed_in_gbps: "{{ input.user_input | trim | default(default_port_speed, true) }}"
+
+        - assert:
+            that:
+              - port_speed_in_gbps is match("^[0-9]+$")
+              - (port_speed_in_gbps | int) in [16, 32, 64]
+
+    # =====================================================
+    # BOOT SIZE
+    # =====================================================
+    - name: Prompt for boot size
+      block:
+        - pause:
+            prompt: "Enter boot size (137-200GB) [default: {{ default_boot_size }}]"
+          register: input
+
+        - set_fact:
+            boot_size: "{{ input.user_input | trim | default(default_boot_size, true) }}"
+
+        - assert:
+            that:
+              - boot_size is match("^[0-9]+[Gg][Bb]$")
+              - (boot_size[:-2] | int) >= 137
+              - (boot_size[:-2] | int) <= 200
+
+    # =====================================================
+    # SHARED SIZE
+    # =====================================================
+    - name: Prompt for shared size
+      block:
+        - pause:
+            prompt: "Enter shared size (1000-2000GB) [default: {{ default_shared_size }}]"
+          register: input
+
+        - set_fact:
+            shared_size: "{{ input.user_input | trim | default(default_shared_size, true) }}"
+
+        - assert:
+            that:
+              - shared_size is match("^[0-9]+[Gg][Bb]$")
+              - (shared_size[:-2] | int) >= 1000
+              - (shared_size[:-2] | int) <= 100000
+
+    # =====================================================
+    # NORMALIZATION
+    # =====================================================
+    - name: Normalize sizes
+      set_fact:
+        boot_size_normalized: "{{ boot_size }}"
+        shared_size_normalized: "{{ shared_size }}"
+
+    - name: Proceed to deployment phase
+      debug:
+        msg: "ALL INPUTS COLLECTED AND STARTING DEPLOYMENT. PLAYBOOK EXECUTION WILL CONTINUE MOMENTARILY"
+
+# =========================================================
+# IMPORT PLAYBOOKS (DEPLOYMENT PHASE)
+# =========================================================
+#- import_playbook: bhe_day0_vsp_one_port.yml
+- import_playbook: bhe_day0_vsp_one_port_intersight.yml
+
+- import_playbook: bhe_day0_vsp_one_create_parity_pool.yml
+
+- import_playbook: bhe_day0_vsp_one_server_multiple_hbas.yml
+
+- import_playbook: bhe_day0_vsp_one_create_boot_ldevs.yml
+  vars:
+    size: "{{ hostvars['localhost'].boot_size_normalized }}"
+
+- import_playbook: bhe_day0_vsp_one_create_shared_ldev.yml
+  vars:
+    size: "{{ hostvars['localhost'].shared_size_normalized }}"
+
+- import_playbook: bhe_day0_vsp_one_hg_add_luns_to_hg.yml
+
+- import_playbook: bhe_day0_vsp_one_hg_rename_wwn.yml

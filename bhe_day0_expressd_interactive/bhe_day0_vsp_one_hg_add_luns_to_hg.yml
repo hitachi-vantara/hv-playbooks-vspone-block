@@ -1,0 +1,343 @@
+---
+# ###################################################################
+# Example : Hostgroup Playbook
+# Note - The ldev ids referenced in the task below must match the
+# the range of ldev ids created previousl by the following playbooks:
+#   a. day0_vsp_one_create_boot_ldevs.yml
+#   b. day0_vsp_one_create_shared_ldev.yml
+# Update the playbook for your deployment
+# ************************************************************************************************
+# NOTE - B85 will use ports CL1-A, CL2-A, CL1-B, and CL2-B. Update the playbook when ready to test
+# ************************************************************************************************
+# Post execution run playbook day0_vsp_one_hostgroup_facts.yml
+# ###################################################################
+- name: Hostgroup Module
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Present lun_paths to hostgroup for the first server
+    ####################################################################
+    - name: Present lun_paths to hostgroup UCS-ESXi-050 CL3-A
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-050"
+          port_id: "CL3-A"
+          lun_paths:
+            - lun: 0
+              ldev: 0
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_050_CL3_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_050_CL3_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-050 CL4-A
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-050"
+          port_id: "CL4-A"
+          lun_paths:
+            - lun: 0
+              ldev: 0
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_050_CL4_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_050_CL4_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-050 CL3-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-050"
+          port_id: "CL3-B"
+          lun_paths:
+            - lun: 0
+              ldev: 0
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_050_CL3_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_050_CL3_B
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-050 CL4-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-050"
+          port_id: "CL4-B"
+          lun_paths:
+            - lun: 0
+              ldev: 0
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_050_CL4_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_050_CL4_B
+
+    ####################################################################
+    # Task Name : Present lun_paths to hostgroup for the second server
+    ####################################################################
+    - name: Present lun_paths to hostgroup UCS-ESXi-051 CL3-A
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-051"
+          port_id: "CL3-A"
+          lun_paths:
+            - lun: 0
+              ldev: 6
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_051_CL3_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_051_CL3_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-051 CL4-A
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-051"
+          port_id: "CL4-A"
+          lun_paths:
+            - lun: 0
+              ldev: 6
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_051_CL4_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_051_CL4_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-051 CL3-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-051"
+          port_id: "CL3-B"
+          lun_paths:
+            - lun: 0
+              ldev: 6
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_051_CL3_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_051_CL3_B
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-051 CL4-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-051"
+          port_id: "CL4-B"
+          lun_paths:
+            - lun: 0
+              ldev: 6
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_051_CL4_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_051_CL4_B
+
+    ####################################################################
+    # Task Name : Present lun_paths to hostgroup for the third server
+    ####################################################################
+    - name: Present lun_paths to hostgroup UCS-ESXi-052 CL3-A
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-052"
+          port_id: "CL3-A"
+          lun_paths:
+            - lun: 0
+              ldev: 7
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_052_CL3_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_052_CL3_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-052 CL4-A
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-052"
+          port_id: "CL4-A"
+          lun_paths:
+            - lun: 0
+              ldev: 7
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_052_CL4_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_052_CL4_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-052 CL3-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-052"
+          port_id: "CL3-B"
+          lun_paths:
+            - lun: 0
+              ldev: 7
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_052_CL3_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_052_CL3_B
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-052 CL4-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-052"
+          port_id: "CL4-B"
+          lun_paths:
+            - lun: 0
+              ldev: 7
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_052_CL4_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_052_CL4_B
+
+    ####################################################################
+    # Task Name : Present lun_paths to hostgroup for the fourth server
+    ####################################################################
+    - name: Present lun_paths to hostgroup UCS-ESXi-053 CL3-A
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-053"
+          port_id: "CL3-A"
+          lun_paths:
+            - lun: 0
+              ldev: 8
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_053_CL3_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_053_CL3_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-053 CL4-A
+      hitachivantara.vspone_block.vsp.hv_hg: 
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-053"
+          port_id: "CL4-A"
+          lun_paths:
+            - lun: 0
+              ldev: 8
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_053_CL4_A
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_053_CL4_A
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-053 CL3-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-053"
+          port_id: "CL3-B"
+          lun_paths:
+            - lun: 0
+              ldev: 8
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_053_CL3_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_053_CL3_B
+
+    - name: Present lun_paths to hostgroup UCS-ESXi-053 CL4-B
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          state: "present_ldev"
+          name: "UCS-ESXi-053"
+          port_id: "CL4-B"
+          lun_paths:
+            - lun: 0
+              ldev: 8
+            - lun: 1
+              ldev: 161
+      register: result_UCS_ESXi_053_CL4_B
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result_UCS_ESXi_053_CL4_B
