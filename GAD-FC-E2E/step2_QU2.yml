@@ -1,0 +1,53 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get specific Quorum Disk on RCU
+    ####################################################################
+    - name: Get specific Quorum Disk on RCU
+      hitachivantara.vspone_block.vsp.hv_quorum_disk_facts:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          id: "{{ rcu_quorum_id }}"
+      register: rcu_quorum_facts_result
+
+    - name: Debug the RCU Quorum facts variable
+      ansible.builtin.debug:
+        var: rcu_quorum_facts_result
+
+    ####################################################################
+    # Task : Register Quorum Disk on RCU (If Not Present)
+    ####################################################################
+    - name: Register Quorum Disk on RCU
+      hitachivantara.vspone_block.vsp.hv_quorum_disk:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          remote_storage_serial_number: "{{ storage_serial_number }}" # Points back to Primary MCU
+          remote_storage_type: "{{ rcu_storage_type }}"
+          ldev_id: "{{ rcu_quorum_ldev }}"
+          id: "{{ rcu_quorum_id }}"
+      register: rcu_quorum_creation_result
+      when:
+        - rcu_quorum_facts_result.ansible_facts.quorum_disks is defined
+        - rcu_quorum_facts_result.ansible_facts.quorum_disks | length == 0
+
+    - name: Debug the RCU Quorum registration output
+      ansible.builtin.debug:
+        msg: "RCU Quorum Status: {{ rcu_quorum_creation_result.msg | default('Skipped - Quorum Disk already registered') }}"

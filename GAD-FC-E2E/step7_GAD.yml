@@ -1,0 +1,104 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Self-Contained Dependency: Fetch RCU Pool ID
+    ####################################################################
+    - name: Get Storage Pool facts on RCU (Inline Dependency)
+      hitachivantara.vspone_block.vsp.hv_storagepool_facts:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          pool_name: "{{ rcu_pool_name }}"
+      register: inline_rcu_pool_facts
+
+    - name: Set rcu_pool_id for standalone execution
+      ansible.builtin.set_fact:
+        rcu_pool_id: "{{ inline_rcu_pool_facts.ansible_facts.storage_pool.pool_id | default('UNKNOWN') }}"
+
+    ####################################################################
+    # Task : Gather Live GAD Pair Details for Volumes in Range
+    ####################################################################
+    - name: Gather Live GAD Pair Facts from MCU
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ rcu_connection_info }}"
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name_prefix }}{{ item }}"
+      loop: "{{ range(ldev_start_id | int, (ldev_end_id | int) + 1) | list }}"
+      register: live_gad_facts
+      ignore_errors: true
+
+    ####################################################################
+    # Task : Filter and Identify Existing GAD Pairs
+    ####################################################################
+    - name: Parse and Identify Existing GAD Pair IDs
+      ansible.builtin.set_fact:
+        existing_gad_pair_ldevs: "{{ live_gad_facts.results | default([]) | json_query('[?ansible_facts.gad_pair].item') | map('int') | list }}"
+
+    - name: Display Found Active GAD Pairs
+      ansible.builtin.debug:
+        msg: >-
+          {% if existing_gad_pair_ldevs | length > 0 -%}
+          Found active GAD mirroring for LDEVs: {{ existing_gad_pair_ldevs | join(', ') }}
+          {%- else -%}
+          No active GAD mirroring pairs exist for the target range.
+          {%- endif %}
+
+    #####################################################################
+    # Task : Create GAD pairs for each input LDEV
+    #####################################################################
+    - name: Create GAD pair for each created LDEV
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ rcu_connection_info }}"
+        spec:
+          primary_storage_serial_number: "{{ storage_serial }}"
+          secondary_storage_serial_number: "{{ secondary_storage_serial }}"
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name_prefix }}{{ item }}"
+          primary_volume_id: "{{ item | int }}"
+          secondary_pool_id: "{{ rcu_pool_id }}"
+          secondary_hostgroups:
+            - name: "{{ rcu_host_groups[0].name }}"
+              port_id: "{{ rcu_host_groups[0].port }}"
+              enable_preferred_path: false
+          primary_hostgroups:
+            - name: "{{ mcu_host_groups[0].name }}"
+              port_id: "{{ mcu_host_groups[0].port }}"
+              enable_preferred_path: false
+          quorum_disk_id: "{{ mcu_quorum_id }}"
+          # path_group_id: "{{ path_group_id }}"
+          mirror_unit_number: "{{ mirror_unit_number }}"
+      loop: "{{ range(ldev_start_id | int, (ldev_end_id | int) + 1) | list }}"
+      loop_control:
+        label: "LDEV {{ item }}"
+      register: gad_pair_results
+      when: item | int not in (existing_gad_pair_ldevs | from_json | map('int') | list)
+
+    #####################################################################
+    # Task : Debug GAD pair creation results
+    #####################################################################
+    - name: Debug GAD pair creation results
+      ansible.builtin.debug:
+        var: gad_pair_results
+      when:
+        - gad_pair_results is defined
+        - gad_pair_results.results is defined

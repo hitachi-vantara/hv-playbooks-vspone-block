@@ -1,0 +1,70 @@
+---
+######################################################################################
+# Playbook : Create Pool and DRS Volume on Primary Storage
+######################################################################################
+- name: Storage Pool and DRS Volume Creation - Primary Storage
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    ######################################################################################
+    # Task 1 : Create a storage pool using required details
+    ######################################################################################
+    - name: Create storage pool on primary storage
+      hitachivantara.vspone_block.vsp.hv_storagepool:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          id: 25
+          name: "Ansible-iSCSI-GAD"
+          type: "HDP"
+          pool_volumes:
+            - parity_group_id: "1-1"
+              capacity: "100GB"
+      register: pool_result
+
+    - name: Debug pool creation result
+      ansible.builtin.debug:
+        var: pool_result
+
+    ######################################################################################
+    # Task 2 : Wait 30 seconds before creating DRS volume
+    ######################################################################################
+    - name: Wait 30 seconds before DRS volume creation
+      ansible.builtin.wait_for:
+        timeout: 30
+      when: pool_result is succeeded
+      register: wait_result
+
+
+    ######################################################################################
+    # Task 3 : Create DRS (LDEV) volume from the created pool
+    ######################################################################################
+    - name: Create DRS (LDEV) volume from created pool on primary storage
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          ldev_id: 3000
+          pool_id: 25
+          size: "20GB"
+          capacity_saving: "compression_deduplication"
+          data_reduction_share: true
+          name: "iscsi-GAD-Pri"
+          is_compression_acceleration_enabled: false
+      when: pool_result is succeeded
+      register: ldev_result
+
+    - name: Debug DRS volume creation result
+      ansible.builtin.debug:
+        var: ldev_result
+      when: pool_result is succeeded

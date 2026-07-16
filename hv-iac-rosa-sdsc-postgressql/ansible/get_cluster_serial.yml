@@ -1,0 +1,40 @@
+---
+- name: Get SDS Block Cluster Configuration Facts
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - ./storage_var.yml
+
+  vars:
+    connection_info:
+      # Use your ELB FQDN (preferred) or IP
+      address: "https://vsponesdsblock-pi-8-elb-70ecdd2e65811b4b.elb.us-west-2.amazonaws.com"
+      # address: "https://10.77.72.25"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    - name: Validate API reachability
+      ansible.builtin.uri:
+        url: "{{ connection_info.address }}/ConfigurationManager/v1/objects/cluster"
+        method: GET
+        validate_certs: false
+        user: "{{ vault_storage_username }}"
+        password: "{{ vault_storage_secret }}"
+        return_content: yes
+      register: api_check
+
+    - name: Print raw cluster info (for debugging)
+      ansible.builtin.debug:
+        var: api_check.json
+
+    - name: Get cluster configuration information using module
+      hitachivantara.vspone_block.sds_block.hv_sds_block_cluster_config_facts:
+        connection_info: "{{ connection_info }}"
+      register: cluster_info
+
+    - name: Display only the serial number
+      ansible.builtin.debug:
+        msg: "Cluster Serial Number: {{ cluster_info.data[0].serialNumber }}"

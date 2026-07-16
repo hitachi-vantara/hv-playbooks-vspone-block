@@ -1,3 +1,4 @@
+
 # Ansible Playbooks for Hitachi VSP One Block storage systems
 
 ## Playbook: [Auto-Expand High-Utilization LDEVs](Volume_Ansible_RESTAPI)
@@ -72,6 +73,99 @@ The setup was completed by executing a series of Ansible playbooks for the follo
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/true-copy-playbook/Readme.md) for more info.
 
+## Playbook: [Hitachi Thin Image Snapshot Restore](HTIA_snapshotrestore)
+The snapshot_restore playbook is user-friendly and prompts for input at runtime, making it a valuable tool for anyone needing to perform snapshot restoration on Hitachi VSP storage.
+The playbook performs three key tasks:
+1.	Retrieve Snapshots: It first lists all available snapshots for a specific primary volume (PVOL) provided by the user.
+2.	Restore from Snapshot: The user then selects a snapshot by providing the PVOL and the mirror unit ID, and the playbook restores the data from that snapshot back to its original location.
+3.	Remount Folder: Finally, it remounts the directory to reflect the newly restored data, with the user providing the necessary information to complete the process.
+This script is highly effective and has been successfully used on other projects, demonstrating its reliability for anyone needing a simple solution for Hitachi VSP snapshot restoration.
+
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/HTIA_snapshotrestore/README.md) for more info.
+
+## Playbook: [Create Multiple Remote Paths](create-multiple-remote-paths)
+This playbook takes user inputs such as local/remote port pairs and remote path groups as variables, and dynamically applies them during execution. It also produces a consolidated report of all configured remote paths. This playbook is especially useful for setting up remote paths for HUR, GAD, and TC in large-scale environments.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-remote-paths/Readme.md) for more info.
+
+## Playbook: [Create Multiple Data Volumes](create-multiple-data-volumes)
+In enterprise-class environments, a large number of volumes are typically required. This playbook accepts an LDEV range for each pool, along with additional configuration parameters such as ADR settings, size, and more. It is designed to run on both MCU and RCU systems, or on either one individually.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-data-volumes/Readme.md) for more info.
+
+## Playbook: [Create Host Groups and Map Data Volumes](map-data-volumes)
+This playbook accept parameters such as host WWPN, and P/S-Vol ports, total number of volumes and based on "multipathing" setting, the LDEVs will be distributed.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/map-data-volumes/Readme.md) for more info.
+
+## Playbook: [Create Journals for HUR](create-HUR-journals)
+This playbook automates the creation of DP volumes and configuration of journal groups based on user input. It first creates the LDEV and assigns a journal ID, then applies the desired copy pace setting. The playbook can be executed on both MCU and RCU systems, or on either one individually. Additionally, it generates a report listing the created journals along with their copy pace settings.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-HUR-journals/Readme.md) for more info.
+
+## Playbook: [Create Multiple HUR Pairs](create-multiple-HUR-pairs)
+This playbook automates the creation of multiple Hitachi Universal Replicator (UR) pairs by accepting user inputs such as primary and secondary volume ranges, journal groups, and other replication parameters. It supports bulk HUR pair creation for large-scale environments and generates a consolidated report of all configured replication pairs.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-HUR-pairs/Readme.md) for more info.
+
+## Playbook: [Create Multiple GAD Pairs](create-multiple-GAD-pairs)
+This playbook automates the creation of multiple Global Active Device (GAD) pairs by accepting user inputs such as primary and secondary volume ranges, quorum disk, consistency group, and other configuration parameters. It is designed for large-scale active-active deployments and generates a consolidated report of all configured GAD pairs.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-GAD-pairs/Readme.md) for more info.
+
+## Playbook: [GAD-FC-E2E ](GAD-FC-E2E )
+
+This playbook was created to automate the configuration of FC GAD pairs, ensuring consistent, efficient, and error-free deployment of active-active volume replication across the connected storage systems.
+
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/GAD-FC-E2E%20/README.md) for more info.
+
+## Playbook: [ndm_gad_playbooks ](ndm_gad_playbooks )
+
+This directory contains Ansible playbooks for implementing complete storage migration workflows using Hitachi VSP One Block's Global Active Device (GAD) technology with Non-Disruptive Migration (NDM) capabilities.
+### Roles: [roles ](roles )
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/ndm_gad_playbooks/README.md) for more info.
+## Playbook: [iSCSI GAD Pair Configuration](iSCSI-GAD-VSPOneB20)
+These Ansible playbooks are customized to automate the configuration of iSCSI-based GAD pairs, ensuring consistent, efficient, and reliable deployment of active-active volume replication across the connected Hitachi VSP One primary and secondary storage systems.
+
+_The setup was completed by executing a series of Ansible playbooks for the following tasks:_
+- Get DP Pool & Parity Group
+- Get Free LDEV IDs
+- DP Pool & DRS Volume Creation (Primary)
+- Get Storage Port Info
+- Configure iSCSI Port
+- Create iSCSI Target & Update Host Mode (Primary)
+- DP Pool Creation (Secondary)
+- Create iSCSI Target & Update Host Mode (Secondary)
+- Create Resource Group & Reserve iSCSI Target
+- Register Remote Storage
+- Create iSCSI Remote Connection
+- Create External Volume, Host Group & Mapping
+- External Volume Addition
+- Quorum Disk Registration
+- Create iSCSI GAD Pair
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/iSCSI-GAD-VSPOneB20/Readme.md) for more info.
+
+## Playbook: [ndm_gad_playbooks ](ndm_gad_playbooks )
+
+This directory contains Ansible playbooks for implementing complete storage migration workflows using Hitachi VSP One Block's Global Active Device (GAD) technology with Non-Disruptive Migration (NDM) capabilities.
+### Roles: [roles ](roles )
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/ndm_gad_playbooks/README.md) for more info.
+
+## Playbook: [hv-playbooks-HIS-VMWare](hv-playbooks-HIS-VMWare)
+This project automates the complete Hitachi-VMware infrastructure provisioning pipeline using Ansible playbooks with Vault-secured credentials and zero hardcoded values, covering:
+
+-Register servers and provision volumes on Hitachi VSP                                                     
+-Zone LUNs to ESXi hosts via Brocade G720 FC switches                                              
+-Rescan HBAs and discover presented LUN canonical names                                                               
+-Create VMFS datastores on VMware ESXi                                                                       
+-Deploy and configure VCSA 9.x with Datacenter, Cluster, VDS, and Port Group                                                                
+-Import existing vCenter and NSX into VMware Cloud Foundation 9.0.1 as a VI Workload Domain                         
+— all eliminating manual steps across the storage, networking, and virtualization layers for a fully repeatable end-to-end provisioning workflow.
 
 # **DISCLAIMER: **
 All materials provided in this repository, including but not limited to Ansible Playbooks and Terraform Configurations, are made available as a courtesy. These materials are intended solely as examples, which may be utilized in whole or in part. Neither the contributors nor the users of this platform assert or are granted any ownership rights over the content shared herein. It is the sole responsibility of the user to evaluate the appropriateness and applicability of the materials for their specific use case.

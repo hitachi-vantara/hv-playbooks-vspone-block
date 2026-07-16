@@ -1,0 +1,39 @@
+---
+########################################################################################
+# Playbook : Resource Group Configuration
+# Description : Creates a Resource Group on the Secondary system using the Primary VSM 
+#               serial number and maps the designated iSCSI target on Resource group.
+########################################################################################
+- name: Configure Resource Group on VSP One
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6831.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+    #############################################################################################################
+    # Task Name : Create a Resource Group in Secondary using Primary VSM serial number and Secondary iSCSI target
+    #############################################################################################################
+    - name: Create a Resource Group on Secondary using Primary VSM serial number and iSCSI target
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        spec:
+          name: "rg_ansible-iscsi"
+          virtual_storage_serial: 810003        # Primary VSM serial number
+          virtual_storage_model: "VSP_ONE_B26"
+          host_groups:
+            - port: "CL1-C"                     # Secondary iSCSI port
+              name: "iscsi-GAD-server"
+      register: result_resource_group
+
+    - name: Debug resource group result
+      ansible.builtin.debug:
+        var: result_resource_group

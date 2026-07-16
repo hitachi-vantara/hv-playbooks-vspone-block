@@ -1,0 +1,181 @@
+
+
+
+
+
+
+
+
+
+
+
+##Inventory:
+# ============================================================
+# VCF Import - Ansible Inventory
+# All API calls go through localhost (uri module)
+# SDDC Manager host is declared as a variable in vault_vars.yml
+# ============================================================
+
+[vcf_sddc_manager]
+localhost ansible_connection=local
+
+
+
+##Vars:
+---
+# ============================================================
+# vars.yml — VCF Import VI Workload Domain
+# ============================================================
+ 
+# --- New Workload Domain ---
+domain_name: "vi-workload-domain-01"
+ 
+# --- vCenter Inventory (informational) ---
+datacenter_name: "HIS-DC"
+cluster_name:    "HIS-Clus"
+dvs_name:        "DSwitch-ans"
+ 
+# --- NSX Manager ---
+nsx_vip_fqdn:   "nsx-vip.vsphere.local"
+nsx_vip_ip:     "172.23.44.23"
+nsx_node1_fqdn: "ha-nsx-mgr.vsphere.local"
+nsx_node1_ip:   "172.23.44.20"
+
+
+
+
+---
+# ============================================================
+# Playbook : vcf_import_vi_workload_domain_final.yml
+# Purpose  : Import external vCenter + NSX into VCF 9.0.1
+#            as a VI Workload Domain
+#
+# METHOD   : vcf_brownfield.py on SDDC Manager via SSH
+#            Tool version: 9.0.1.0-24962179
+#
+# PASSWORD HANDLING (confirmed from constants.py):
+#   VCENTER_SSO_PASSWORD  env var -> vCenter SSO password
+#   --internal-vcf-auth   flag   -> skips SDDC Manager local admin password
+#
+# IMPORT PARAMS:
+#   --vcenter         vCenter FQDN/IP
+#   --sso-user        SSO username
+#   --domain-name     Name for the new VI domain
+#   --nsx-fqdn        Existing NSX VIP FQDN
+#   --accept-trust    Auto-trust certs/SSH keys
+#   --suppress-warnings  Continue on warnings
+#   --skip-ssh-thumbprint-validation  Auto-trust host SSH keys
+#   --internal-vcf-auth  Skip SDDC Manager local admin password prompt
+#   --existing-datastore-name  (optional) specify datastore
+# ============================================================
+
+- name: "Import vCenter + NSX into VCF 9.0.1 as VI Workload Domain"
+  hosts: localhost
+  connection: local
+  gather_facts: false
+
+  vars_files:
+    - var_vault.yml
+    - vars.yml
+
+  vars_prompt:
+    - name: "vcenter_sso_password"
+      prompt: "Enter vCenter SSO password (administrator@vsphere.local)"
+      private: true
+      confirm: false
+
+  vars:
+    sddc_mgr_ip:  "172.23.44.15"
+    sddc_mgr_user: "vcf"
+    import_tool:  "/opt/vmware/vcf/domainmanager/scripts/vcf-import-tool/vcf_brownfield.py"
+    output_dir:   "/tmp/vcf_import_{{ domain_name }}"
+
+  tasks:
+
+    # -------------------------------------------------------
+    # STEP 1: Preflight checks
+    # -------------------------------------------------------
+    - name: "PREFLIGHT | Check sshpass is installed"
+      shell: which sshpass
+      register: sshpass_check
+      failed_when: false
+      changed_when: false
+
+    - name: "PREFLIGHT | Install sshpass if missing"
+      shell: apt-get install -y sshpass 2>/dev/null || yum install -y sshpass 2>/dev/null || true
+      when: sshpass_check.rc != 0
+      become: true
+      ignore_errors: true
+
+    - name: "PREFLIGHT | Verify sshpass available"
+      shell: which sshpass
+      changed_when: false
+
+    - name: "PREFLIGHT | Verify import tool exists on SDDC Manager"
+      shell: >
+        sshpass -p '{{ vault_sddc_manager_password }}'
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+        {{ sddc_mgr_user }}@{{ sddc_mgr_ip }}
+        "test -f {{ import_tool }} && cat {{ import_tool | dirname }}/VCF_IMPORT_TOOL_VERSION"
+      register: tool_check
+      no_log: true
+
+    - name: "PREFLIGHT | Show tool version"
+      debug:
+        msg: "VCF Import Tool confirmed: {{ tool_check.stdout }}"
+
+    # -------------------------------------------------------
+    # STEP 2: Run import
+    #   - Passwords passed via environment variables (no TTY needed)
+    #   - --internal-vcf-auth skips SDDC Manager local admin password
+    #   - Tool auto-discovers datacenter, cluster from vCenter
+    #   - --existing-datastore-name is optional (auto-selected if omitted)
+    # -------------------------------------------------------
+    - name: "IMPORT | Submit VI Workload Domain import"
+      shell: |
+        sshpass -p '{{ vault_sddc_manager_password }}' \
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null \
+        -o ServerAliveInterval=60 -o ServerAliveCountMax=60 \
+        {{ sddc_mgr_user }}@{{ sddc_mgr_ip }} \
+        "mkdir -p {{ output_dir }} && \
+        VCENTER_SSO_PASSWORD='{{ vcenter_sso_password }}' \
+        VCENTER_ROOT_PASSWORD='{{ vcenter_sso_password }}' \
+        LOCAL_ADMIN_PASSWORD='{{ vcenter_sso_password }}' \
+        NSX_ADMIN_PASSWORD='{{ vcenter_sso_password }}' \
+        NSX_ROOT_PASSWORD='{{ vcenter_sso_password }}' \
+        NSX_AUDIT_PASSWORD='{{ vcenter_sso_password }}' \
+        python3 {{ import_tool }} import \
+        --vcenter {{ vault_vcenter_host }} \
+        --sso-user {{ vault_vcenter_user }} \
+        --domain-name {{ domain_name }} \
+        --nsx-fqdn {{ nsx_vip_fqdn }} \
+        --accept-trust \
+        --suppress-warnings \
+        --skip-ssh-thumbprint-validation \
+        --skip-nsx-deployment-checks \
+        --skip-nsx-overlay-checks \
+        --nsx-audit-password '{{ vcenter_sso_password }}' \
+        --output-dir {{ output_dir }} \
+        2>&1"
+      register: import_result
+      no_log: false
+      async: 7200
+      poll: 30
+
+    - name: "IMPORT | Show import output"
+      debug:
+        msg: "{{ import_result.stdout_lines | default([]) }}"
+
+    - name: "IMPORT | Fail if import did not succeed"
+      fail:
+        msg: >
+          Import failed with rc={{ import_result.rc }}.
+          Check output above and logs at {{ output_dir }} on SDDC Manager.
+      when: import_result.rc != 0
+
+    - name: "RESULT | Import complete"
+      debug:
+        msg: >
+          VI Workload Domain '{{ domain_name }}' successfully imported.
+          vCenter: {{ vault_vcenter_host }}
+          NSX VIP: {{ nsx_vip_fqdn }}

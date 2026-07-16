@@ -1,0 +1,35 @@
+---
+# =============================================================
+# GAD Compliance Thresholds - compliance_vars.yml
+# =============================================================
+
+# --- GAD Pair Expected Values ---
+# copy_pace_track_size and copy_rate are strings from the module
+expected_gad_copy_pace: "MEDIUM"
+expected_gad_copy_rate: "MEDIUM"
+
+# --- LDEV Expected Values ---
+# status returns values like: NML, BLK, etc.
+expected_ldev_status: "NML"
+
+# dedup_compression_status returns: ENABLED, DISABLED, etc.
+expected_ldev_dedup_compression_status: "ENABLED"
+
+# deduplication_compression_mode returns: compression_deduplication, etc.
+expected_ldev_dedup_compression_mode: "compression_deduplication"
+
+# Minimum number of paths expected per LDEV
+expected_ldev_min_path_count: 2
+
+# provision_type returns: CVS, HDP, HDT, etc. Uses substring match.
+expected_ldev_provision_type: "CVS"
+
+# --- Storage Pool Expected Values ---
+# pool_status returns: NORMAL, OVER_THRESHOLD, etc.  (NOT "status")
+expected_pool_status: "NORMAL"
+
+# Minimum available capacity in MB  (NOT "free_capacity")
+pool_min_free_capacity_mb: 1024000
+
+# Maximum allowed used capacity rate percentage
+pool_max_used_capacity_rate: 80

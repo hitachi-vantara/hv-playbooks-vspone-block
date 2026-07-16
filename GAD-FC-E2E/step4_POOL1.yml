@@ -1,0 +1,67 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Step 1: Check if Storage Pool exists on MCU
+    ####################################################################
+    - name: Get Storage Pool facts on MCU
+      hitachivantara.vspone_block.vsp.hv_storagepool_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          pool_name: "{{ mcu_pool_name }}"
+      register: mcu_pool_facts_result
+
+    - name: Debug MCU Pool facts
+      ansible.builtin.debug:
+        var: mcu_pool_facts_result
+
+    ####################################################################
+    # Step 2: Create Storage Pool on MCU
+    ####################################################################
+    - name: Create Storage Pool on MCU
+      hitachivantara.vspone_block.vsp.hv_storagepool:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          name: "{{ mcu_pool_name }}"
+          type: "{{ mcu_pool_type }}"
+          pool_volumes: "{{ mcu_pool_vols_list }}"
+      register: pool_creation_result_mcu
+      when:
+        - mcu_pool_facts_result.ansible_facts.storage_pool.pool_id is not defined
+
+    ####################################################################
+    # Step 3: Capture Pool IDs dynamically across both potential states
+    ####################################################################
+    - name: Set facts for mcu_pool_id
+      ansible.builtin.set_fact:
+        mcu_pool_id: >-
+          {{
+            mcu_pool_facts_result.ansible_facts.storage_pool.pool_id | default(pool_creation_result_mcu.storage_pool.pool_id | default('UNKNOWN'))
+          }}
+
+    ####################################################################
+    # Step 4: Verify Captured Pool IDs
+    ####################################################################
+    - name: Verify captured Pool IDs
+      ansible.builtin.debug:
+        msg: >-
+          Pool identification verification complete!
+          [MCU Pool ID: {{ mcu_pool_id }}]

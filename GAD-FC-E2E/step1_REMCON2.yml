@@ -1,0 +1,54 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get Remote Connection Facts on RCU
+    ####################################################################
+    - name: Get Remote Connection Facts on RCU
+      hitachivantara.vspone_block.vsp.hv_remote_connection_facts:
+        connection_info: "{{ rcu_connection_info }}"
+        spec:
+          path_group_id: "{{ path_group_id | default(0) }}"
+      register: rcu_remcon_facts_result
+
+    - name: Debug RCU Remote Connection Facts
+      ansible.builtin.debug:
+        var: rcu_remcon_facts_result
+
+    ####################################################################
+    # Task : Create Remote Connection on RCU (If Not Present)
+    ####################################################################
+    - name: Create Remote Connection on RCU
+      hitachivantara.vspone_block.vsp.hv_remote_connection:
+        connection_info: "{{ rcu_connection_info }}"
+        state: "present"
+        spec:
+          path_group_id: "{{ path_group_id | default(0) }}"
+          remote_storage_serial_number: "{{ storage_serial_number }}"
+          remote_storage_model: "{{ mcu_storage_model | default('VSP') }}"
+          remote_paths: "{{ rcu_remote_paths_list }}"
+      register: rcu_remcon_creation_result
+      when:
+        - rcu_remcon_facts_result.ansible_facts.remote_connections is defined
+        - rcu_remcon_facts_result.ansible_facts.remote_connections | length == 0
+
+    - name: Debug RCU Remote Connection Output
+      ansible.builtin.debug:
+        msg: "RCU Remote Connection Status: {{ rcu_remcon_creation_result.msg | default('Skipped - Path Group already exists and is healthy') }}"

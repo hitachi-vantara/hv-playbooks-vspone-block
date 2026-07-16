@@ -1,0 +1,17 @@
+# ============================================================
+# Vault: storage_provisioning/global_vault/vcf_vault.yml
+# Description:
+#   Stores Hitachi VSP credentials for the storage provisioning
+#   playbook. This file MUST be encrypted with Ansible Vault
+#   before committing to version control:
+#     ansible-vault encrypt global_vault/vcf_vault.yml
+#
+# Variables:
+#   storage_ip        - Hitachi VSP management IP address
+#   storage_username  - VSP login username
+#   storage_password  - VSP login password
+# ============================================================
+---
+storage_ip: "your-vsp-ip"
+storage_username: "your-vsp-username"
+storage_password: "your-vsp-password"

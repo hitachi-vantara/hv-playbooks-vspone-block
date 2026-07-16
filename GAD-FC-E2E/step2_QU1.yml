@@ -1,0 +1,53 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get specific Quorum Disk on MCU
+    ####################################################################
+    - name: Get specific Quorum Disk on MCU
+      hitachivantara.vspone_block.vsp.hv_quorum_disk_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          id: "{{ mcu_quorum_id }}"
+      register: mcu_quorum_facts_result
+
+    - name: Debug the MCU Quorum facts variable
+      ansible.builtin.debug:
+        var: mcu_quorum_facts_result
+
+    ####################################################################
+    # Task : Register Quorum Disk on MCU (If Not Present)
+    ####################################################################
+    - name: Register Quorum Disk on MCU
+      hitachivantara.vspone_block.vsp.hv_quorum_disk:
+        connection_info: "{{ connection_info }}"
+        spec:
+          remote_storage_serial_number: "{{ secondary_storage_serial }}"
+          remote_storage_type: "{{ mcu_storage_type }}"
+          ldev_id: "{{ mcu_quorum_ldev }}"
+          id: "{{ mcu_quorum_id }}"
+      register: mcu_quorum_creation_result
+      when:
+        - mcu_quorum_facts_result.ansible_facts.quorum_disks is defined
+        - mcu_quorum_facts_result.ansible_facts.quorum_disks | length == 0
+
+    - name: Debug the MCU Quorum registration output
+      ansible.builtin.debug:
+        msg: "MCU Quorum Status: {{ mcu_quorum_creation_result.msg | default('Skipped - Quorum Disk already registered') }}"

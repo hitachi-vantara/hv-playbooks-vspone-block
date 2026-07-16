@@ -1,0 +1,7 @@
+mcu_remote_paths:
+  - "CL5-A CL5-B,CL6-A CL6-B,0"
+  - "CL7-A CL7-B,CL8-A CL8-B,1"
+rcu_remote_paths:
+  - "CL5-B CL5-A,CL6-B CL6-A,0"
+  - "CL7-B CL7-A,CL8-B CL8-A,1"
+

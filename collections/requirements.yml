@@ -1,0 +1,4 @@
+---
+collections:
+  - name: hitachivantara.vspone_block
+    # Optionally specify a version (e.g., version: 1.0.0)

@@ -1,0 +1,87 @@
+{
+  "$schema": "https://schema.management.azure.com/schemas/2015-01-01/deploymentParameters.json#",
+  "contentVersion": "1.0.0.0",
+  "parameters": {
+    "location": {
+      "value": "${location}"
+    },
+    "clusterName": {
+      "value": "${cluster_name}"
+    },
+    "clusterStructure": {
+      "value": "${cluster_structure}"
+    },
+    "timeZone": {
+      "value": "${time_zone}"
+    },
+    "storageAccountName": {
+      "value": "${storage_account_name}"
+    },
+    "billingCode": {
+      "value": "${billing_code}"
+    },
+    "isMultiAz": {
+      "value": ${is_multi_az}
+    },
+    "zones": {
+      "value": ${jsonencode(zones)}
+    },
+    "storageNodeVmSize": {
+      "value": "${storage_node_vm_size}"
+    },
+    "numberOfNodes": {
+      "value": ${number_of_nodes}
+    },
+    "numberOfDrives": {
+      "value": ${number_of_drives}
+    },
+    "driveSize": {
+      "value": ${drive_size}
+    },
+    "virtualNetworkResourceGroupName": {
+      "value": "${virtual_network_resource_group_name}"
+    },
+    "virtualNetworkName": {
+      "value": "${virtual_network_name}"
+    },
+    "controlSubnetName": {
+      "value": "${control_subnet_name}"
+    },
+    "internodeSubnetName": {
+      "value": "${internode_subnet_name}"
+    },
+    "computeSubnetName": {
+      "value": "${compute_subnet_name}"
+    },
+    "computeIPv6Enable": {
+      "value": ${compute_ipv6_enable}
+    },
+    "computePortProtocol": {
+      "value": "${compute_port_protocol}"
+    },
+    "controlNetworkAllowedIpv4AddCidrBlocks": {
+      "value": ${jsonencode(control_network_allowed_ipv4_add_cidr_blocks)}
+    },
+    "computeNetworkAllowedIpv4AddCidrBlocks": {
+      "value": ${jsonencode(compute_network_allowed_ipv4_add_cidr_blocks)}
+    },
+    "computeNetworkAllowedIpv6AddCidrBlocks": {
+      "value": ${jsonencode(compute_network_allowed_ipv6_add_cidr_blocks)}
+    },
+    "diskEncryptionSetId": {
+      "value": "${disk_encryption_set_id}"
+    },
+    "controlMtuSize": {
+      "value": ${control_mtu_size}
+    },
+    "internodeMtuSize": {
+      "value": ${internode_mtu_size}
+    },
+    "computeMtuSize": {
+      "value": ${compute_mtu_size}
+    },
+    "installationSettingMethod": {
+      "value": "${installation_setting_method}"
+    }
+  }
+}

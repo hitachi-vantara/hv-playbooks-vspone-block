@@ -1,0 +1,49 @@
+---
+####################################################################
+#Global Active Device Pair (GAD) Playbook
+####################################################################
+- name: GAD - Global Active Device Pair Management
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_6827_6831.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Create GAD-iSCSI pair
+    ####################################################################
+    - name: Create GAD-iSCSI pair
+      hitachivantara.vspone_block.vsp.hv_gad:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+
+        spec:
+          copy_group_name: "copy_group_name_1"
+          copy_pair_name: "copy_pair_name_1"
+
+          primary_volume_id: 3000
+          secondary_pool_id: 25
+          secondary_iscsi_targets:
+            - name: "iscsi-GAD-server"
+              port: "CL1-C"
+             # enable_preferred_path: false
+              lun_id: 0
+          quorum_disk_id: 4
+
+      register: result
+
+    - name: Debug the result variable
+      ansible.builtin.debug:
+        var: result
+

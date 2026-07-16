@@ -1,0 +1,155 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Self-Contained Dependency: Fetch MCU Pool ID
+    ####################################################################
+    - name: Get Storage Pool facts on MCU (Inline Dependency)
+      hitachivantara.vspone_block.vsp.hv_storagepool_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          pool_name: "{{ mcu_pool_name }}"
+      register: inline_mcu_pool_facts
+
+    - name: Set mcu_pool_id for standalone execution
+      ansible.builtin.set_fact:
+        mcu_pool_id: "{{ inline_mcu_pool_facts.ansible_facts.storage_pool.pool_id | default('UNKNOWN') }}"
+
+    ####################################################################
+    # Task : Create LDEVs based on raw range input
+    ####################################################################
+    - name: Create Target LDEVs
+      hitachivantara.vspone_block.vsp.hv_ldev:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          ldev_id: "{{ item }}"
+          pool_id: "{{ mcu_pool_id }}"
+          size: "{{ ldev_size }}"
+          name: "{{ ldev_name_prefix }}_{{ item }}"
+          capacity_saving: "compression"
+          is_compression_acceleration_enabled: true
+      loop: "{{ range(ldev_start_id | int, (ldev_end_id | int) + 1) | list }}"
+
+    ####################################################################
+    # Task : Calculate LDEV Batches directly from range input
+    ####################################################################
+    - name: Calculate LDEV Batches for Host Group Mapping
+      ansible.builtin.set_fact:
+        ldev_batches: >-
+          {{
+            range(ldev_start_id | int, (ldev_end_id | int) + 1) | list
+            | batch(((range(ldev_start_id | int, (ldev_end_id | int) + 1) | list | length) / (mcu_host_groups | length)) | round(0, 'ceil') | int)
+            | list
+          }}
+
+    ####################################################################
+    # Task : Move LDEVs to Target Resource Group using range input
+    ####################################################################
+    - name: Move Target LDEVs to Target Resource Group
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          state: "add_resource"
+          name: "{{ mcu_rg_name }}"
+          ldevs: "{{ range(ldev_start_id | int, (ldev_end_id | int) + 1) | list }}"
+
+    ####################################################################
+    # Task : Add LDEVs to the Host Groups
+    ####################################################################
+    - name: Bind LDEVs to Migrated Host Groups
+      hitachivantara.vspone_block.vsp.hv_hg:
+        connection_info: "{{ connection_info }}"
+        state: "present"
+        spec:
+          name: "{{ item.name }}"
+          port_id: "{{ item.port }}"
+          host_mode: "{{ item.host_mode }}"
+          wwns: "{{ item.wwns }}"
+          ldevs: "{{ ldev_batches[hg_index] | default([]) | map('int') | list }}"
+      loop: "{{ mcu_host_groups }}"
+      loop_control:
+        index_var: hg_index
+      when:
+        - ldev_batches[hg_index] is defined
+        - ldev_batches[hg_index] | default([]) | length > 0
+
+    ####################################################################
+    # Task : Fetch Post-Bind Verified LDEV Details
+    ####################################################################
+    - name: Fetch Latest LDEV Facts Following Host Group Bind
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          start_ldev_id: "{{ ldev_start_id }}"
+          end_ldev_id: "{{ ldev_end_id }}"
+      register: post_bind_ldev_facts
+
+    ####################################################################
+    # Task : Print LDEV Configuration
+    ####################################################################
+    - name: Print LDEV Configuration
+      ansible.builtin.set_fact:
+        msg: |
+          ================= LDEV Configuration =================
+          Target Input Definition Range: {{ ldev_start_id }} to {{ ldev_end_id }}
+          {% set vols = post_bind_ldev_facts.ansible_facts.volumes | default([]) %}
+          {% for vol in vols %}
+          - LDEV ID: {{ vol.ldev_id }} [Hex: {{ vol.ldev_id_hex | default('N/A') }}]
+            Virtual LDEV ID: {{ vol.virtual_ldev_id | default('N/A') }} [Hex: {{ vol.virtual_ldev_id_hex | default('N/A') }}]
+            Volume Name: {{ vol.name | default('N/A') }}
+            Provision Type: {{ vol.provision_type | default('N/A') }}
+            ------------------------------------------------------------
+            Capacity & Savings Profile:
+            * Total Size: {{ vol.total_capacity | default('N/A') }} ({{ vol.total_capacity_in_mb | default('0') }} MB)
+            * Used Space: {{ vol.used_capacity | default('N/A') }} ({{ vol.used_capacity_in_mb | default('0') }} MB)
+            * Data Reduction: {{ vol.data_reduction_status | default('N/A') }} (Mode: {{ vol.deduplication_compression_mode | default('N/A') }})
+            * Acceleration: {{ vol.compression_acceleration_status | default('N/A') }} (Process: {{ vol.data_reduction_process_mode | default('N/A') }})
+            ------------------------------------------------------------
+            Array Infrastructure Mapping:
+            * Storage Pool ID: {{ vol.pool_id | default('N/A') }}
+            * Resource Group ID: {{ vol.resource_group_id | default('N/A') }}
+            * MP Blade Assigned: MP{{ vol.mp_blade_id | default('N/A') }}
+            * SSID Assignment: {{ vol.ssid | default('N/A') }}
+            * Operational Status: {{ vol.status | default('N/A') }} (Normal)
+            ------------------------------------------------------------
+            Host Fabric Routing:
+            * Active Path Count: {{ vol.path_count | default(0) }} via {{ vol.num_of_ports | default(0) }} Target Port(s)
+            * Bound Host Groups: {{ vol.hostgroups | default([]) | length }}
+          {% if vol.hostgroups | default([]) | length > 0 %}
+          {% for hg in vol.hostgroups %}
+            * Target Port: {{ hg.port_id }} -> Host Group: "{{ hg.name }}" (ID: {{ hg.id }})
+          {% endfor %}
+          {% endif %}
+          {% if vol.ports | default([]) | length > 0 %}
+            * SAN Storage LUN Matrix:
+          {% for p in vol.ports %}
+              [Port {{ p.port_id }}] -> HG #{{ p.host_group_number }} ("{{ p.host_group_name }}") -> Host LUN ID: {{ p.lun }}
+          {% endfor %}
+          {% endif %}
+          {% endfor %}
+          ============================================================
+
+    ####################################################################
+    # Task : Display Summary Report
+    ####################################################################
+    - name: Display Summary Report
+      ansible.builtin.debug:
+        msg: "{{ msg.splitlines() }}"

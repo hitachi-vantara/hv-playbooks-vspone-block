@@ -1,0 +1,77 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task Name : Get MCU Resource Group by name
+    ####################################################################
+    - name: Get MCU Resource Group by name
+      hitachivantara.vspone_block.vsp.hv_resource_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          name: "{{ mcu_rg_name }}"
+      register: mcu_rg_facts_result
+
+    - name: Debug the MCU Resource Group facts variable
+      ansible.builtin.debug:
+        var: mcu_rg_facts_result
+
+    #########################################################################################################
+    # Task Name : Create a Resource Group on MCU with virtual storage serial number of VSM (If Not Exists)
+    # Execution of the following task is not supported while any target storage system resources are locked.
+    # All resources must be unlocked prior to execution.
+    #########################################################################################################
+    - name: Create a Resource Group on MCU with virtual storage serial number of VSM
+      hitachivantara.vspone_block.vsp.hv_resource_group:
+        connection_info: "{{ connection_info }}"
+        spec:
+          name: "{{ mcu_rg_name }}"
+          virtual_storage_serial: "{{ virtual_serial_number }}"
+          virtual_storage_model: "{{ vsm_model }}"
+      register: mcu_rg_creation_result
+      when:
+        - mcu_rg_facts_result.ansible_facts.resource_groups is defined
+        - mcu_rg_facts_result.ansible_facts.resource_groups | length == 0
+
+    - name: Debug the MCU Resource Group creation output
+      ansible.builtin.debug:
+        msg: "Creation status: {{ mcu_rg_creation_result.msg | default('Skipped - Resource Group already exists') }}"
+
+    ####################################################################
+    # Task Name : Parse, Populate, and Display MCU Resource Group Details
+    ####################################################################
+    - name: Set Resource Group Facts securely
+      ansible.builtin.set_fact:
+        extracted_rg_name: >-
+          {{
+            mcu_rg_facts_result.ansible_facts.resource_groups[0].name | default(mcu_rg_creation_result.resource_group.name | default(mcu_rg_name))
+          }}
+        mcu_rg_id: >-
+          {{
+            mcu_rg_facts_result.ansible_facts.resource_groups[0].id | default(mcu_rg_creation_result.resource_group.id | default('UNKNOWN'))
+          }}
+
+    - name: Display Found or Created MCU Resource Group details
+      ansible.builtin.debug:
+        msg: >-
+          Target MCU Resource Group is ready for GAD!
+          [Status: {{ 'Already Existed' if (mcu_rg_facts_result.ansible_facts.resource_groups | default([]) | length > 0) else 'Freshly Created' }}]
+          [Name: {{ extracted_rg_name }}]
+          [ID/Num: {{ mcu_rg_id }}]
+

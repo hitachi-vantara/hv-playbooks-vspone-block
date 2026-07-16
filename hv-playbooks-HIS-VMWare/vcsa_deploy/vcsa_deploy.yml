@@ -1,0 +1,234 @@
+# ============================================================
+# Playbook: vcsa_deploy/vcsa_deploy.yml
+# Description:
+#   Deploys VMware vCenter Server Appliance (VCSA) 9.x to a
+#   standalone ESXi host using the official vcsa-deploy CLI
+#   tool bundled inside the mounted VCSA ISO. Post-deployment,
+#   configures vCenter with a Datacenter, Cluster, Virtual
+#   Distributed Switch (VDS), and a VLAN Port Group.
+#
+#   Stage 1 - VCSA VM Deployment:
+#     1. Verifies the VCSA ISO is mounted and deploy binary exists.
+#     2. Renders a JSON deployment config from a Jinja2 template.
+#     3. Invokes vcsa-deploy CLI to upload OVA and configure VCSA.
+#     4. Removes the rendered config (contains passwords).
+#     5. Waits for vCenter HTTPS API (port 443) to be reachable.
+#
+#   Stage 2 - vCenter Configuration:
+#     1. Creates Datacenter  : HIS-DC
+#     2. Creates Cluster     : ANS-clust
+#     3. Creates VDS         : vDS-Main (MTU 1500, 2 uplinks)
+#     4. Creates Port Group  : VLAN-440 (VLAN ID 440)
+#
+#   Prerequisites:
+#     - VCSA ISO mounted:
+#         sudo mkdir -p /mnt/vcsa-iso
+#         sudo mount -o loop VMware-VCSA-all-9.0.1.0.24957454.iso /mnt/vcsa-iso
+#     - Vault file populated: ansible_vault_vmware_var.yml
+#     - Collection installed: community.vmware
+#     - Controller must reach VCSA IP on port 443
+#
+#   Usage:
+#     ansible-playbook -i vmware_inventory.yml \
+#       vcsa_deploy.yml --ask-vault-pass
+#
+#   Requirements:
+#     ansible-galaxy collection install -r ../requirements.yml
+# ============================================================
+---
+
+###################################################################
+# PLAY 1 — Deploy VCSA VM via vcsa-deploy CLI
+###################################################################
+- name: "STAGE 1 | Deploy VCSA 9.x VM to standalone ESXi"
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars_files:
+    - ansible_vault_vmware_var.yml
+
+  vars:
+    vcsa_iso_mount: "/mnt/vcsa-iso"
+    vcsa_deploy_bin: "/mnt/vcsa-iso/vcsa-cli-installer/lin64/vcsa-deploy"
+    vcsa_config_dest: "/tmp/vcsa_deploy_config.json"
+
+  tasks:
+
+    # ----------------------------------------------------------
+    # 1. Prechecks
+    # ----------------------------------------------------------
+    - name: Verify ISO is mounted and vcsa-deploy binary exists
+      ansible.builtin.stat:
+        path: "{{ vcsa_deploy_bin }}"
+      register: deploy_bin_stat
+
+    - name: Fail if vcsa-deploy binary not found
+      ansible.builtin.fail:
+        msg: >
+          vcsa-deploy not found at {{ vcsa_deploy_bin }}.
+          Mount the VCSA ISO first:
+            sudo mkdir -p {{ vcsa_iso_mount }}
+            sudo mount -o loop VMware-VCSA-all-9.0.1.0.24957454.iso {{ vcsa_iso_mount }}
+      when: not deploy_bin_stat.stat.exists
+
+    - name: Confirm vcsa-deploy binary is runnable
+      ansible.builtin.command:
+        cmd: "{{ vcsa_deploy_bin }} --version"
+      register: vcsa_version_check
+      changed_when: false
+
+    - name: Show vcsa-deploy version
+      ansible.builtin.debug:
+        var: vcsa_version_check.stdout_lines
+
+    # ----------------------------------------------------------
+    # 2. Render deployment JSON config
+    # ----------------------------------------------------------
+    - name: Render VCSA deployment config from template
+      ansible.builtin.template:
+        src: roles/vcf_vmware/templates/vcsa_deploy_config.json.j2
+        dest: "{{ vcsa_config_dest }}"
+        mode: '0600'
+
+    - name: Confirm config rendered successfully
+      ansible.builtin.debug:
+        msg: "Deployment config written to {{ vcsa_config_dest }}"
+
+    # ----------------------------------------------------------
+    # 3. Deploy VCSA VM
+    # ----------------------------------------------------------
+    - name: Run vcsa-deploy install (takes 30-60 minutes)
+      ansible.builtin.command:
+        cmd: >
+          {{ vcsa_deploy_bin }} install
+          --accept-eula
+          --no-ssl-certificate-verification
+          --acknowledge-ceip
+          {{ vcsa_config_dest }}
+      register: vcsa_deploy_output
+      async: 3600
+      poll: 30
+
+    - name: Show vcsa-deploy output
+      ansible.builtin.debug:
+        var: vcsa_deploy_output.stdout_lines
+
+    # ----------------------------------------------------------
+    # 4. Cleanup temp config (contains passwords)
+    # ----------------------------------------------------------
+    - name: Remove temp deployment config
+      ansible.builtin.file:
+        path: "{{ vcsa_config_dest }}"
+        state: absent
+
+    # ----------------------------------------------------------
+    # 5. Wait for vCenter API before Stage 2
+    # ----------------------------------------------------------
+    - name: Wait for vCenter HTTPS API to be reachable (port 443)
+      ansible.builtin.wait_for:
+        host: "{{ vcsa_ip }}"
+        port: 443
+        delay: 60
+        timeout: 1800
+        state: started
+
+    - name: Stage 1 complete
+      ansible.builtin.debug:
+        msg: "VCSA VM deployed and API is reachable at https://{{ vcsa_ip }}"
+
+
+###################################################################
+# PLAY 2 — Configure vCenter (DC, Cluster, VDS, Port Group)
+###################################################################
+- name: "STAGE 2 | Configure vCenter — Datacenter, Cluster, VDS, Port Group"
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  vars_files:
+    - ansible_vault_vmware_var.yml
+
+  module_defaults:
+    group/vmware:
+      hostname: "{{ vcsa_ip }}"
+      username: "{{ vcsa_sso_user }}"
+      password: "{{ vcsa_sso_password }}"
+      validate_certs: false
+
+  tasks:
+
+    # ----------------------------------------------------------
+    # 1. Create Datacenter
+    # ----------------------------------------------------------
+    - name: "Create Datacenter — {{ vcenter_datacenter }}"
+      community.vmware.vmware_datacenter:
+        datacenter_name: "{{ vcenter_datacenter }}"
+        state: present
+
+    - name: Datacenter created
+      ansible.builtin.debug:
+        msg: "Datacenter '{{ vcenter_datacenter }}' is ready"
+
+    # ----------------------------------------------------------
+    # 2. Create Cluster
+    # ----------------------------------------------------------
+    - name: "Create Cluster — {{ vcenter_cluster }}"
+      community.vmware.vmware_cluster:
+        datacenter_name: "{{ vcenter_datacenter }}"
+        cluster_name: "{{ vcenter_cluster }}"
+        state: present
+
+    - name: Cluster created
+      ansible.builtin.debug:
+        msg: "Cluster '{{ vcenter_cluster }}' created in '{{ vcenter_datacenter }}'"
+
+    # ----------------------------------------------------------
+    # 3. Create VDS
+    # ----------------------------------------------------------
+    - name: "Create VDS — {{ vcenter_vds_name }}"
+      community.vmware.vmware_dvswitch:
+        datacenter_name: "{{ vcenter_datacenter }}"
+        switch_name: "{{ vcenter_vds_name }}"
+        switch_version: "8.0.0"
+        mtu: "{{ vcenter_vds_mtu }}"
+        uplink_quantity: "{{ vcenter_vds_uplinks }}"
+        state: present
+
+    - name: VDS created
+      ansible.builtin.debug:
+        msg: "VDS '{{ vcenter_vds_name }}' created (MTU: {{ vcenter_vds_mtu }}, Uplinks: {{ vcenter_vds_uplinks }})"
+
+    # ----------------------------------------------------------
+    # 4. Create Port Group VLAN-440
+    # ----------------------------------------------------------
+    - name: "Create Port Group — {{ vcenter_pg_name }} (VLAN {{ vcenter_pg_vlan }})"
+      community.vmware.vmware_dvs_portgroup:
+        portgroup_name: "{{ vcenter_pg_name }}"
+        switch_name: "{{ vcenter_vds_name }}"
+        vlan_id: "{{ vcenter_pg_vlan }}"
+        num_ports: 128
+        portgroup_type: "earlyBinding"
+        state: present
+
+    - name: Port Group created
+      ansible.builtin.debug:
+        msg: "Port Group '{{ vcenter_pg_name }}' created on '{{ vcenter_vds_name }}' with VLAN {{ vcenter_pg_vlan }}"
+
+    # ----------------------------------------------------------
+    # 5. Final Summary
+    # ----------------------------------------------------------
+    - name: Full deployment summary
+      ansible.builtin.debug:
+        msg:
+          - "============================================"
+          - "VCSA Deployment and Configuration Complete"
+          - "============================================"
+          - "vCenter URL  : https://{{ vcsa_ip }}/ui"
+          - "VAMI         : https://{{ vcsa_ip }}:5480"
+          - "SSO Login    : {{ vcsa_sso_user }}"
+          - "Datacenter   : {{ vcenter_datacenter }}"
+          - "Cluster      : {{ vcenter_cluster }}"
+          - "VDS          : {{ vcenter_vds_name }}"
+          - "Port Group   : {{ vcenter_pg_name }} (VLAN {{ vcenter_pg_vlan }})"
+          - "============================================"

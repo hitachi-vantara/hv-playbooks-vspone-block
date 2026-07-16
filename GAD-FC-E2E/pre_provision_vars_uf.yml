@@ -1,0 +1,132 @@
+####################################################################
+# pre_provision_vars.yml
+# - Values containing leading zeros or colons should be quoted.
+# - Sections are ordered by the sequence of tasks: connection → pools → LDEVs
+#   → ports/hostgroups → host mode/HMOs → initiators/WWNs/CHAP → resource/copy
+#   groups → quorum → remote paths/connections → GAD pairing → diagnostics.
+####################################################################
+
+####################################################################
+# Playbook States
+####################################################################
+state_absent: absent
+state_present: present
+state_restore: restore
+state_resync: resync
+state_split: split
+state_sync: sync
+
+####################################################################
+# Substates (spec.state inner field)
+####################################################################
+substate_absent: absent
+substate_add_chap_user: add_chap_user
+substate_add_iscsi_initiator: add_iscsi_initiator
+substate_add_wwn: add_wwn
+substate_present_ldev: present_ldev
+substate_remove_chap_user: remove_chap_user
+substate_remove_iscsi_initiator: remove_iscsi_initiator
+substate_remove_wwn: remove_wwn
+substate_set_host_mode_and_hmo: set_host_mode_and_hmo
+substate_unpresent_ldev: unpresent_ldev
+
+# NOTE: mcu ldevs/hgs will be move to the mcu resource group and rcu hg on rcu resourcegroup
+#       existing copygroup should also be in the same resource group
+
+####################################################################
+# CopyGroup & Copy Pair Name
+####################################################################
+copy_group_name: "gadcgtst2"
+copy_pair_name_prefix: "gadtst2_"
+mirror_unit_number: 3 # only 1, 2, 3
+
+####################################################################
+# LDEVs and Volume Layout
+####################################################################
+ldev_end_id: 6804
+ldev_start_id: 6804
+ldev_name_prefix: gadtsta2
+ldev_size: 1GB
+
+####################################################################
+# Hostgroups
+# Note: uppercase wwns hex value, and must not already registered/used
+####################################################################
+mcu_host_groups:
+  - name: "halba-mcu-hg-1"
+    port: CL2-B
+    host_mode: "LINUX"
+    wwns:
+    - wwn: "88786767ABCBDABC"
+  # - name: mcu-vol-jonnnn8
+  #   port: CL2-B
+  #   host_mode: LINUX
+  #   wwns:
+  #   - 99786767ABCBDABC
+
+rcu_host_groups: # just one hg
+  - name: "halba-rcu-hg-1"
+    port: CL2-B
+    host_mode: "LINUX"
+    wwns:
+    - wwn: "88111767ABCBDABC"
+
+####################################################################
+# Storage Pools
+####################################################################
+mcu_pool_name: "dummypool1"
+mcu_pool_type: HDP
+mcu_pool_vols_list:
+  - parity_group_id: 1-2
+    capacity: 60GB
+
+rcu_pool_name: jonamaypool_rcu_7
+rcu_pool_type: HDP
+rcu_pool_vols_list:
+  - parity_group_id: 1-1
+    capacity: 60GB
+
+####################################################################
+# Resource Groups
+####################################################################
+mcu_rg_name: "sn_vsm_vspone_b24"
+rcu_rg_name: "sn_vsm_vspone_b24"
+virtual_serial_number: "810044"
+vsm_model: "VSP One B24"
+
+####################################################################
+# Quorum Configuration
+####################################################################
+mcu_quorum_id: 4
+mcu_quorum_ldev: 2808
+mcu_storage_type: M8
+rcu_quorum_id: 4
+rcu_quorum_ldev: 11313
+rcu_storage_type: M8
+
+####################################################################
+# Connection and Environment
+# Make sure to check your current port connection lists
+####################################################################
+path_group_id: 0
+
+mcu_remote_paths_list:
+  # - local_port: "CL5-A"
+  #   remote_port: "CL5-B"
+  # - local_port: "CL6-A"
+  #   remote_port: "CL6-B"
+  - local_port: "CL2-B"
+    remote_port: "CL2-B"
+
+rcu_remote_paths_list:
+  # - local_port: "CL5-B"
+  #   remote_port: "CL5-A"
+  # - local_port: "CL6-B"
+  #   remote_port: "CL6-A"
+  - local_port: "CL2-B"
+    remote_port: "CL2-B"
+
+####################################################################
+# General and Miscellaneous Settings
+####################################################################
+

@@ -1,0 +1,211 @@
+---
+- name: GAD Compliance Report with Configurable Thresholds
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var_2.yml
+    - compliance_vars_bhe.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task 1: Retrieve GAD Pair Facts
+    ####################################################################
+    - name: Get all GAD pairs
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+      register: gad_result
+
+    - name: Debug GAD result
+      ansible.builtin.debug:
+        var: gad_result
+
+    - name: Fail if no GAD pairs found
+      ansible.builtin.fail:
+        msg: "No GAD pairs were found. Cannot generate compliance report."
+      when: gad_result.ansible_facts.gad_pair | default([]) | length == 0
+
+    ####################################################################
+    # Task 2: Retrieve Parity Group Facts
+    ####################################################################
+    - name: Get all parity groups
+      hitachivantara.vspone_block.vsp.hv_paritygroup_facts:
+        connection_info: "{{ connection_info }}"
+      register: parity_result
+
+    - name: Debug parity group result structure
+      ansible.builtin.debug:
+        msg:
+          - "Type: {{ parity_result.ansible_facts.parity_groups | type_debug }}"
+          - "Count: {{ parity_result.ansible_facts.parity_groups | length }}"
+
+    ####################################################################
+    # Task 3: Retrieve Storage Pool Facts
+    ####################################################################
+    - name: Get all storage pools
+      hitachivantara.vspone_block.vsp.hv_storagepool_facts:
+        connection_info: "{{ connection_info }}"
+      register: pool_result
+
+    - name: Debug storage pool result structure
+      ansible.builtin.debug:
+        msg:
+          - "Type: {{ pool_result.ansible_facts.storage_pool | type_debug }}"
+          - "Count: {{ pool_result.ansible_facts.storage_pool | length }}"
+
+    ####################################################################
+    # Task 4: Retrieve Primary LDEV Details for each GAD pair
+    ####################################################################
+    - name: Gather Primary LDEV Details for each GAD pair
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          ldev_id: "{{ gad.primary_volume_id }}"
+      loop: "{{ gad_result.ansible_facts.gad_pair | default([]) }}"
+      loop_control:
+        loop_var: gad
+        label: "Primary LDEV {{ gad.primary_volume_id }}"
+      register: gad_ldev_details
+
+    ####################################################################
+    # Task 5: Retrieve Secondary LDEV Details for each GAD pair
+    ####################################################################
+    - name: Gather Secondary LDEV Details for each GAD pair
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ secondary_connection_info }}"
+        spec:
+          ldev_id: "{{ gad.secondary_volume_id }}"
+      loop: "{{ gad_result.ansible_facts.gad_pair | default([]) }}"
+      loop_control:
+        loop_var: gad
+        label: "Secondary LDEV {{ gad.secondary_volume_id }}"
+      register: gad_secondary_ldev_details
+
+    ####################################################################
+    # Task 6: Build Final Consolidated Compliance Report
+    ####################################################################
+    - name: Build Final Consolidated Compliance Report Text
+      ansible.builtin.set_fact:
+        final_compliance_report: |
+          =================== Final Compliance Report ===================
+          Report Generated: {{ now(utc=true).strftime('%Y-%m-%d %H:%M:%S UTC') }}
+
+          Thresholds Used:
+            GAD Copy Pace: {{ expected_gad_copy_pace }} | GAD Copy Rate: {{ expected_gad_copy_rate }}
+            LDEV Status: {{ expected_ldev_status }} | Min Path Count: {{ expected_ldev_min_path_count }}
+            Pool Status: {{ expected_pool_status }} | Pool Min Free MB: {{ pool_min_free_capacity_mb }}
+            Pool Max Used Rate: {{ pool_max_used_capacity_rate }}%
+          ================================================================
+
+          GAD Pair Compliance ({{ gad_result.ansible_facts.gad_pair | length }} pairs):
+          ----------------------------------------------------------------
+          {% for i in range(0, gad_result.ansible_facts.gad_pair | length) %}
+          {% set gad = gad_result.ansible_facts.gad_pair[i] %}
+          GAD Pair #{{ i + 1 }} [{{ gad.copy_group_name | default('N/A') }} / {{ gad.copy_pair_name | default('N/A') }}]:
+            - Primary Volume ID       : {{ gad.primary_volume_id }} (Hex: {{ gad.primary_volume_id_hex | default('N/A') }})
+            - Secondary Volume ID     : {{ gad.secondary_volume_id }} (Hex: {{ gad.secondary_volume_id_hex | default('N/A') }})
+            - Primary Volume Status   : {{ gad.primary_volume_status | default('N/A') }}
+            - Secondary Volume Status : {{ gad.secondary_volume_status | default('N/A') }}
+            - Copy Pace Track Size    : {{ gad.copy_pace_track_size | default('N/A') }} -> {{ 'PASSED' if gad.copy_pace_track_size | default('') == expected_gad_copy_pace else 'FAILED' }}
+            - Copy Rate               : {{ gad.copy_rate | default('N/A') }} -> {{ 'PASSED' if gad.copy_rate | default('') == expected_gad_copy_rate else 'FAILED' }}
+            - Consistency Group ID    : {{ gad.consistency_group_id | default('N/A') }}
+            - Quorum Disk ID          : {{ gad.quorum_disk_id | default('N/A') }}
+            - ALUA Enabled            : {{ gad.is_alua_enabled | default('N/A') }}
+            - Primary Storage ID      : {{ gad.primary_volume_storage_id | default('N/A') }}
+            - Secondary Storage ID    : {{ gad.secondary_volume_storage_id | default('N/A') }}
+
+            Primary LDEV Compliance:
+          {% set primary_ldev = gad_ldev_details.results[i].ansible_facts.volumes[0] %}
+            - LDEV Name                   : {{ primary_ldev.name | default('N/A') }}
+            - LDEV Status                 : {{ primary_ldev.status | default('N/A') }} -> {{ 'PASSED' if primary_ldev.status | default('') == expected_ldev_status else 'FAILED' }}
+            - Total Capacity              : {{ primary_ldev.total_capacity | default('N/A') }} ({{ primary_ldev.total_capacity_in_mb | default('N/A') }} MB)
+            - Pool ID                     : {{ primary_ldev.pool_id | default('N/A') }}
+            - Parity Group ID             : {{ primary_ldev.parity_group_id | default('N/A') }}
+            - Emulation Type              : {{ primary_ldev.emulation_type | default('N/A') }}
+            - Dedupe Compression Status   : {{ primary_ldev.dedup_compression_status | default('N/A') }} -> {{ 'PASSED' if primary_ldev.dedup_compression_status | default('') == expected_ldev_dedup_compression_status else 'FAILED' }}
+            - Dedupe Compression Mode     : {{ primary_ldev.deduplication_compression_mode | default('N/A') }} -> {{ 'PASSED' if primary_ldev.deduplication_compression_mode | default('') == expected_ldev_dedup_compression_mode else 'FAILED' }}
+            - Path Count                  : {{ primary_ldev.path_count | default(0) }} -> {{ 'PASSED' if (primary_ldev.path_count | default(0) | int) >= (expected_ldev_min_path_count | int) else 'FAILED' }}
+            - Provision Type              : {{ primary_ldev.provision_type | default('N/A') }} -> {{ 'PASSED' if expected_ldev_provision_type | lower in (primary_ldev.provision_type | default('') | lower) else 'FAILED' }}
+            - Encryption Enabled          : {{ primary_ldev.is_encryption_enabled | default('N/A') }}
+            - Compression Accel Status    : {{ primary_ldev.compression_acceleration_status | default('N/A') }}
+
+            Secondary LDEV Compliance:
+          {% set secondary_ldev = gad_secondary_ldev_details.results[i].ansible_facts.volumes[0] %}
+            - LDEV Name                   : {{ secondary_ldev.name | default('N/A') }}
+            - LDEV Status                 : {{ secondary_ldev.status | default('N/A') }} -> {{ 'PASSED' if secondary_ldev.status | default('') == expected_ldev_status else 'FAILED' }}
+            - Total Capacity              : {{ secondary_ldev.total_capacity | default('N/A') }} ({{ secondary_ldev.total_capacity_in_mb | default('N/A') }} MB)
+            - Pool ID                     : {{ secondary_ldev.pool_id | default('N/A') }}
+            - Parity Group ID             : {{ secondary_ldev.parity_group_id | default('N/A') }}
+            - Emulation Type              : {{ secondary_ldev.emulation_type | default('N/A') }}
+            - Dedupe Compression Status   : {{ secondary_ldev.dedup_compression_status | default('N/A') }} -> {{ 'PASSED' if secondary_ldev.dedup_compression_status | default('') == expected_ldev_dedup_compression_status else 'FAILED' }}
+            - Dedupe Compression Mode     : {{ secondary_ldev.deduplication_compression_mode | default('N/A') }} -> {{ 'PASSED' if secondary_ldev.deduplication_compression_mode | default('') == expected_ldev_dedup_compression_mode else 'FAILED' }}
+            - Path Count                  : {{ secondary_ldev.path_count | default(0) }} -> {{ 'PASSED' if (secondary_ldev.path_count | default(0) | int) >= (expected_ldev_min_path_count | int) else 'FAILED' }}
+            - Provision Type              : {{ secondary_ldev.provision_type | default('N/A') }} -> {{ 'PASSED' if expected_ldev_provision_type | lower in (secondary_ldev.provision_type | default('') | lower) else 'FAILED' }}
+            - Encryption Enabled          : {{ secondary_ldev.is_encryption_enabled | default('N/A') }}
+            - Compression Accel Status    : {{ secondary_ldev.compression_acceleration_status | default('N/A') }}
+
+            Capacity Match Check:
+            - Primary Capacity  : {{ primary_ldev.total_capacity_in_mb | default(0) }} MB
+            - Secondary Capacity: {{ secondary_ldev.total_capacity_in_mb | default(0) }} MB
+            - Match             : {{ 'PASSED' if primary_ldev.total_capacity_in_mb | default(0) == secondary_ldev.total_capacity_in_mb | default(0) else 'FAILED' }}
+
+            Associated Parity Group (based on primary LDEV):
+          {% set ns = namespace(found=false) %}
+          {% for pg in parity_result.ansible_facts.parity_groups %}
+          {% if (gad.primary_volume_id | int) in pg.ldev_ids %}
+          {% set ns.found = true %}
+              -> {{ pg.parity_group_id }} (RAID: {{ pg.raid_level | default('N/A') }}, Drive: {{ pg.drive_type | default('N/A') }}, Total: {{ pg.total_capacity | default('N/A') }}, Free: {{ pg.free_capacity | default('N/A') }})
+          {% endif %}
+          {% endfor %}
+          {% if not ns.found %}
+              -> Not Found in any parity group
+          {% endif %}
+
+          {% endfor %}
+          ================================================================
+          Storage Pools Compliance ({{ pool_result.ansible_facts.storage_pool | length }} pools):
+          ----------------------------------------------------------------
+          {% for pool in pool_result.ansible_facts.storage_pool %}
+          Pool: {{ pool.pool_name | default('N/A') }} (ID: {{ pool.pool_id | default('N/A') }}, Type: {{ pool.pool_type | default('N/A') }}):
+            - Pool Status              : {{ pool.pool_status | default('N/A') }} (Expected: {{ expected_pool_status }}) -> {{ 'PASSED' if pool.pool_status | default('') == expected_pool_status else 'FAILED' }}
+            - Total Capacity (MB)      : {{ pool.total_pool_capacity_mb | default('N/A') }}
+            - Available Capacity (MB)  : {{ pool.available_volume_capacity_mb | default(0) }} -> {{ 'PASSED' if (pool.available_volume_capacity_mb | default(0) | float) >= (pool_min_free_capacity_mb | float) else 'FAILED' }}
+            - Used Capacity Rate (%)   : {{ pool.used_capacity_rate | default('N/A') }} -> {{ 'PASSED' if (pool.used_capacity_rate | default(100) | int) <= (pool_max_used_capacity_rate | int) else 'FAILED' }}
+            - Depletion Threshold (%)  : {{ pool.depletion_threshold | default('N/A') }}
+            - Warning Threshold (%)    : {{ pool.warning_threshold | default('N/A') }}
+            - Data Reduction Rate      : {{ pool.data_reduction_rate | default('N/A') }}
+            - Located Volumes          : {{ pool.located_volume_count | default('N/A') }}
+            - Snapshot Count           : {{ pool.snapshot_count | default('N/A') }}
+          {% endfor %}
+          ================================================================
+          END OF REPORT
+          ================================================================
+
+    - name: Display Final Consolidated Compliance Report
+      ansible.builtin.debug:
+        msg: "{{ final_compliance_report }}"
+
+    ####################################################################
+    # Task 7: Write the Final Report to a File
+    ####################################################################
+    - name: Write Final Compliance Report to file
+      ansible.builtin.copy:
+        content: "{{ final_compliance_report }}"
+        dest: "/tmp/final_compliance_report.txt"
+        mode: '0644'
+
+    - name: Inform user about the report file
+      ansible.builtin.debug:
+        msg: "The Final Compliance Report has been written to /tmp/final_compliance_report.txt"

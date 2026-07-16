@@ -1,0 +1,92 @@
+# ============================================================
+# Role Tasks: storage_provisioning/roles/hv_server_volume/tasks/main.yml
+# Description:
+#   Automates server registration and volume provisioning on
+#   Hitachi VSP systems. All parameters are injected from
+#   vars_prompt in the parent playbook.
+# ============================================================
+---
+# ----------------------------------------------------------
+# TASK 1: Register VMware server with HBAs and FC paths
+# ----------------------------------------------------------
+- name: Register server with multiple HBAs
+  hitachivantara.vspone_block.vsp.hv_vsp_one_server:
+    state: present
+    connection_info:
+      address: "{{ storage_ip }}"
+      username: "{{ storage_username }}"
+      password: "{{ storage_password }}"
+    spec:
+      nick_name: "{{ server_name }}"
+      protocol: "FC"
+      os_type: "VMware"
+      hbas:
+        - hba_wwn: "{{ hba_wwn1 }}"
+        - hba_wwn: "{{ hba_wwn2 }}"
+      paths:
+        - hba_wwn: "{{ hba_wwn1 }}"
+          port_ids: "{{ port_ids.split(',') }}"
+        - hba_wwn: "{{ hba_wwn2 }}"
+          port_ids: "{{ port_ids.split(',') }}"
+  register: server_result
+
+- name: Show server registration result
+  ansible.builtin.debug:
+    msg: "Server '{{ server_name }}' registered | ID: {{ server_result.server.id }} | Changed: {{ server_result.changed }}"
+
+# ----------------------------------------------------------
+# TASK 2: Save registered server ID for later use
+# ----------------------------------------------------------
+- name: Collect server ID
+  ansible.builtin.set_fact:
+    server_ids: "{{ [server_result.server.id] }}"
+
+# ----------------------------------------------------------
+# TASK 3: Create shared volume with capacity saving
+# ----------------------------------------------------------
+- name: Create shared volume with capacity saving and data reduction
+  hitachivantara.vspone_block.vsp.hv_vsp_one_volume:
+    state: present
+    connection_info:
+      address: "{{ storage_ip }}"
+      username: "{{ storage_username }}"
+      password: "{{ storage_password }}"
+    spec:
+      capacity: "{{ volume_size }}"
+      pool_id: "{{ pool_id }}"
+      volume_name:
+        base_name: "{{ volume_base_name }}"
+      capacity_saving: "{{ capacity_saving }}"
+      capacity_saving_status: "{{ capacity_saving_status }}"
+      is_data_reduction_share_enabled: "{{ data_reduction_share }}"
+  register: volume_result
+
+- name: Show volume creation result
+  ansible.builtin.debug:
+    msg: "Volume '{{ volume_base_name }}' created | ID: {{ volume_result.volume[0].id }} | Changed: {{ volume_result.changed }}"
+
+# ----------------------------------------------------------
+# TASK 4: Save created volume ID
+# ----------------------------------------------------------
+- name: Save volume ID
+  ansible.builtin.set_fact:
+    volume_id: "{{ volume_result.volume[0].id }}"
+
+# ----------------------------------------------------------
+# TASK 5: Attach volume to registered server
+# ----------------------------------------------------------
+- name: Attach volume to servers
+  hitachivantara.vspone_block.vsp.hv_vsp_one_volume:
+    state: attach_server
+    connection_info:
+      address: "{{ storage_ip }}"
+      username: "{{ storage_username }}"
+      password: "{{ storage_password }}"
+    spec:
+      volume_id: "{{ volume_id }}"
+      server_ids: "{{ server_ids }}"
+  register: attach_result
+
+- name: Show attach result
+  ansible.builtin.debug:
+    msg: "Volume ID {{ volume_id }} attached to server IDs {{ server_ids }} | Changed: {{ attach_result.changed }}"

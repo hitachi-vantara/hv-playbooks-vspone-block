@@ -1,0 +1,110 @@
+####################################################################
+# pre_provision_vars.yml
+# - Values containing leading zeros or colons should be quoted.
+# - Sections are ordered by the sequence of tasks: connection → pools → LDEVs
+#   → ports/hostgroups → host mode/HMOs → initiators/WWNs/CHAP → resource/copy
+#   groups → quorum → remote paths/connections → GAD pairing → diagnostics.
+####################################################################
+
+####################################################################
+# Playbook States
+####################################################################
+state_absent: absent
+state_present: present
+state_restore: restore
+state_resync: resync
+state_split: split
+state_sync: sync
+
+####################################################################
+# Substates (spec.state inner field)
+####################################################################
+substate_absent: absent
+substate_add_chap_user: add_chap_user
+substate_add_iscsi_initiator: add_iscsi_initiator
+substate_add_wwn: add_wwn
+substate_present_ldev: present_ldev
+substate_remove_chap_user: remove_chap_user
+substate_remove_iscsi_initiator: remove_iscsi_initiator
+substate_remove_wwn: remove_wwn
+substate_set_host_mode_and_hmo: set_host_mode_and_hmo
+substate_unpresent_ldev: unpresent_ldev
+
+####################################################################
+# Pools and Storage Pools
+####################################################################
+mcu_pool_name: test_pool_new_5
+mcu_pool_type: HDP
+mcu_pool_id: 24
+mcu_pool_vols_list:
+  - parity_group_id: 1-1
+    capacity: 100GB
+rcu_pool_id: 24
+rcu_pool_name: test_pool_new_5
+
+rcu_pool_type: HDP
+rcu_pool_vols_list:
+  - parity_group_id: 1-1
+    capacity: 100GB
+
+####################################################################
+# LDEVs and Volume Layout
+####################################################################
+ldev_end_id: 1000
+ldev_start_id: 999
+ldev_name_prefix: aJonVol-Newjon33
+ldev_size: 100MB
+host_groups:
+  - name: amcu-vol-jon33
+    port: CL1-A
+    host_mode: LINUX
+    wwns:
+      - wwn: 10005cba4cfc652c
+  - name: mcu-vol-jon71
+    port: CL3-A
+    host_mode: LINUX
+    wwns:
+      - wwn: 10005cba4cfc652c
+copy_group_name: gad_jon80
+
+####################################################################
+# Other Task-driven Variables
+####################################################################
+secondary_hg_name: rcu-jon__47
+secondary_port: CL1-A
+
+####################################################################
+# Resource and Copy Groups
+####################################################################
+rg_name: jon_rg__44
+virtual_serial_number: 970045
+vsm_model: VSP_ONE_B85
+
+####################################################################
+# Quorum Configuration
+####################################################################
+mcu_quorum_id: 4 #15
+mcu_quorum_ldev: 65535 #37015
+mcu_storage_type: R9
+rcu_quorum_id: 4 #15
+rcu_quorum_ldev: 65535 #32899
+rcu_storage_type: R9
+
+####################################################################
+# Connection and Environment
+####################################################################
+mcu_remote_paths_list:
+  - local_port: CL4-A #CL7-B
+    remote_port: CL7-A #CL4-A
+  - local_port: CL7-B #CL8-B
+    remote_port: CL4-A #CL7-A
+rcu_remote_paths_list:
+  - local_port: CL4-A
+    remote_port: CL7-B
+  - local_port: CL7-A
+    remote_port: CL4-A #CL8-B
+
+####################################################################
+# General and Miscellaneous Settings
+####################################################################
+path_group_id: 37

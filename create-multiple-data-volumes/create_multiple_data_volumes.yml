@@ -1,0 +1,130 @@
+---
+####################################################################
+# Playbook: Create LDEVs on MCU and RCU (Bulk)
+####################################################################
+- name: Create LDEVs on MCU and RCU
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+
+    ####################################################################
+    # Parse MCU and RCU LDEV range configs into batch specs
+    ####################################################################
+    - name: Parse LDEV configs into bulk batch specs
+      set_fact:
+        bulk_batches: >-
+          {%- set out = [] -%}
+
+          {%- for entry in (mcu_ldev | default([])) -%}
+            {%- set range_str = entry.split(',')[0] -%}
+            {%- set pool_id   = entry.split(',')[1] | int -%}
+            {%- set start_id  = range_str.split('-')[0] | int -%}
+            {%- set end_id    = range_str.split('-')[1] | int -%}
+            {%- set _ = out.append({
+              'type': 'mcu_ldev',
+              'pool_id': pool_id,
+              'start_id': start_id,
+              'end_id': end_id,
+              'count': end_id - start_id + 1,
+              'capacity_saving': mcu_capacity_saving | default(omit),
+              'data_reduction_share': mcu_DRS | default(omit)
+            }) -%}
+          {%- endfor -%}
+
+          {%- for entry in (rcu_ldev | default([])) -%}
+            {%- set range_str = entry.split(',')[0] -%}
+            {%- set pool_id   = entry.split(',')[1] | int -%}
+            {%- set start_id  = range_str.split('-')[0] | int -%}
+            {%- set end_id    = range_str.split('-')[1] | int -%}
+            {%- set _ = out.append({
+              'type': 'rcu_ldev',
+              'pool_id': pool_id,
+              'start_id': start_id,
+              'end_id': end_id,
+              'count': end_id - start_id + 1,
+              'capacity_saving': rcu_capacity_saving | default(omit),
+              'data_reduction_share': rcu_DRS | default(omit)
+            }) -%}
+          {%- endfor -%}
+
+          {{ out }}
+
+    ####################################################################
+    # Create LDEVs in bulk on MCU and RCU
+    ####################################################################
+    - name: Create LDEVs in bulk
+      hitachivantara.vspone_block.vsp.hv_ldev_bulk:
+        connection_info: "{{ connection_info if item.type == 'mcu_ldev' else secondary_connection_info }}"
+        state: present
+        spec:
+          start_ldev_id: "{{ item.start_id }}"
+          end_ldev_id: "{{ item.end_id }}"
+          number_of_ldevs: "{{ item.count }}"
+          pool_id: "{{ item.pool_id }}"
+          size: "{{ default_size }}"
+          capacity_saving: "{{ item.capacity_saving }}"
+          data_reduction_share: "{{ item.data_reduction_share }}"
+          names:
+            base_name: "{{ ldev_name_prefix }}"
+            start_number: "{{ item.start_id }}"
+            number_of_digits: "{{ item.start_id | string | length }}"
+      loop: "{{ bulk_batches }}"
+      ignore_errors: yes
+      register: ldev_creation_report
+
+    ####################################################################
+    # Build and write LDEV Creation Report
+    ####################################################################
+    - name: Generate report content
+      set_fact:
+        final_report: |
+          ===================== LDEV Creation Report ==================
+          {%- set output = {} -%}
+          {%- for r in ldev_creation_report.results if r.volumes is defined -%}
+            {%- set label = r.item.type | upper -%}
+            {%- if label not in output -%}{%- set _ = output.update({label: []}) -%}{%- endif -%}
+            {%- for vol in r.volumes -%}
+              {%- set _ = output[label].append({
+                "ldev_id": vol.ldev_id,
+                "pool_id": vol.pool_id,
+                "name": vol.name,
+                "provision_type": vol.provision_type,
+                "deduplication_compression_mode": vol.deduplication_compression_mode,
+                "total_capacity": vol.total_capacity
+              }) -%}
+            {%- endfor -%}
+          {%- endfor -%}
+
+          {% for label, volumes in output.items() %}
+
+          {{ label }}:
+          {% for v in volumes | sort(attribute='ldev_id') %}
+          {{ v.ldev_id }}: ["name": "{{ v.name }}", "pool_id": {{ v.pool_id }}, "provision_type": "{{ v.provision_type }}", "deduplication_compression_mode": "{{ v.deduplication_compression_mode }}", "capacity": "{{ v.total_capacity }}" ]
+          {% endfor %}
+          {% endfor %}
+
+    - name: Write LDEV Creation Report to file
+      copy:
+        content: "{{ final_report }}"
+        dest: "/tmp/ldev_creation_report_{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}.txt"
+      register: report_file
+
+    - name: Inform user about report location
+      debug:
+        msg: "LDEV Creation Report written to {{ report_file.dest }}"

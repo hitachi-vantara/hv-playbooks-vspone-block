@@ -1,0 +1,163 @@
+---
+- name: Pre-Configuration Setup for GAD
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - pre_provision_vars_uf.yml
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    rcu_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+    ####################################################################
+    # Task : Gather Live LDEVs in Specified Input Range
+    ####################################################################
+    - name: Gather Live LDEVs in the Range from MCU
+      hitachivantara.vspone_block.vsp.hv_ldev_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          start_ldev_id: "{{ ldev_start_id }}"
+          end_ldev_id: "{{ ldev_end_id }}"
+      register: live_mcu_ldevs
+
+    ####################################################################
+    # Task : Gather Live Host Group details across designated ports
+    ####################################################################
+    - name: Gather Live Host Group facts from MCU
+      hitachivantara.vspone_block.vsp.hv_hg_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port_ids: ["{{ item.port }}"]
+          name: "{{ item.name }}"
+      loop: "{{ mcu_host_groups }}"
+      register: live_mcu_hgs
+
+    ####################################################################
+    # Task : Gather Live GAD Pair Details for Volumes in Range
+    ####################################################################
+    - name: Gather Live GAD Pair Facts from MCU
+      hitachivantara.vspone_block.vsp.hv_gad_facts:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ rcu_connection_info }}"
+        spec:
+          copy_group_name: "{{ copy_group_name }}"
+          copy_pair_name: "{{ copy_pair_name_prefix }}{{ item }}"
+      loop: "{{ range(ldev_start_id | int, (ldev_end_id | int) + 1) | list }}"
+      register: live_gad_facts
+      ignore_errors: true
+
+    ####################################################################
+    # Task : Build Consolidated Summary Report Text
+    ####################################################################
+    - name: Build Consolidated Summary Report Text
+      ansible.builtin.set_fact:
+        pre_config_report: |
+          ================= GAD Summary Report =================
+          Target Input Definition Range: {{ ldev_start_id }} to {{ ldev_end_id }}
+
+          Existing LDEVs Discovered on System:
+          {% set discover_vols = (live_mcu_ldevs | default({})).get('ansible_facts', {}).get('volumes', []) -%}
+          {% if discover_vols | length > 0 -%}
+          Count: {{ discover_vols | length }}
+
+          {% for vol in discover_vols -%}
+          - LDEV ID: {{ vol.ldev_id }} [Hex: {{ vol.ldev_id_hex | default('N/A') }}]
+            Virtual LDEV ID: {{ vol.virtual_ldev_id | default('N/A') }} [Hex: {{ vol.virtual_ldev_id_hex | default('N/A') }}]
+            Volume Name: {{ vol.name | default('N/A') }}
+            Provision Type: {{ vol.provision_type | default('N/A') }}
+            Status: {{ vol.status | default('N/A') }}
+            -------------------------------------------
+            Capacity Details:
+            * Total Size: {{ vol.total_capacity | default('N/A') }} ({{ vol.total_capacity_in_mb | default('0') }} MB)
+            * Used Space: {{ vol.used_capacity | default('N/A') }} ({{ vol.used_capacity_in_mb | default('0') }} MB)
+            -------------------------------------------
+            Array Mapping:
+            * Storage Pool ID: {{ vol.pool_id | default('N/A') }}
+            * Resource Group ID: {{ vol.resource_group_id | default('N/A') }}
+            * MP Blade Assigned: MP{{ vol.mp_blade_id | default('N/A') }}
+            * Data Reduction: {{ vol.data_reduction_status | default('DISABLED') }} (Mode: {{ vol.deduplication_compression_mode | default('N/A') }})
+            * Acceleration: {{ vol.compression_acceleration_status | default('DISABLED') }}
+          {% endfor -%}
+          {% else -%}
+          None Discovered. (Target range is clean and ready for allocation)
+          {% endif -%}
+          -------------------------------------------
+          Host Groups Configuration Matrix:
+          {% set hg_results = (live_mcu_hgs | default({})).get('results', []) -%}
+          {% if hg_results | length > 0 -%}
+          {% for hg in hg_results -%}
+          {% set hg_list = (hg | default({})).get('ansible_facts', {}).get('hostGroups', []) -%}
+          {% if hg_list | length > 0 -%}
+          {% set hg_data = hg_list[0] -%}
+          - Host Group Name: {{ hg_data.host_group_name }}
+            ID: {{ hg_data.host_group_id }}
+            Port: {{ hg_data.port_id | default('N/A') }}
+            Resource Group ID: {{ hg_data.resource_group_id | default('N/A') }}
+            Associated LUN Path Count: {{ hg_data.lun_paths | default([]) | length }}
+          {% if hg_data.lun_paths | default([]) | length > 0 -%}
+            Mapped LDEVs: {{ hg_data.lun_paths | map(attribute='ldev_id') | join(', ') }}
+          {% endif -%}
+          {% else -%}
+          - Host Group: "{{ hg.item.name }}" on port "{{ hg.item.port }}" does not exist on array yet.
+          {% endif -%}
+          {% endfor -%}
+          {% else -%}
+          No Input Host Groups could be validated.
+          {% endif -%}
+          -------------------------------------------
+          Global Active Device (GAD) Pairs Status:
+          {% set gad_results = (live_gad_facts | default({})).get('results', []) -%}
+          {% if gad_results | length > 0 -%}
+          {% for gad in gad_results -%}
+          {# FIX: Changed lookup key from 'gad_pairs' to 'gad_pair' #}
+          {% set gad_pair_list = (gad | default({})).get('ansible_facts', {}).get('gad_pair', []) -%}
+          {% if gad_pair_list | length > 0 -%}
+          {% set gad_data = gad_pair_list[0] -%}
+          - Primary LDEV: {{ gad.item }}
+            Copy Group Name: {{ gad_data.copy_group_name | default('N/A') }}
+            Copy Pair Name: {{ gad_data.copy_pair_name | default('N/A') }}
+            Primary Vol Status: {{ gad_data.primary_volume_status | default('UNKNOWN') }}
+            Secondary Vol Status: {{ gad_data.secondary_volume_status | default('UNKNOWN') }}
+            Primary Serial: {{ gad_data.primary_volume_storage_serial_number | default('N/A') }}
+            Secondary Serial: {{ gad_data.secondary_volume_storage_serial_number | default('N/A') }}
+            Secondary LDEV ID: {{ gad_data.secondary_volume_id | default('N/A') }} [Hex: {{ gad_data.secondary_volume_id_hex | default('N/A') }}]
+            Quorum Disk ID: {{ gad_data.quorum_disk_id | default('N/A') }}
+            Mirror Unit Number: {{ gad_data.mirror_unit_number | default('N/A') }}
+            Fence Level: {{ gad_data.fence_level | default('N/A') }}
+          {% else -%}
+          - Primary LDEV: {{ gad.item }} -> No active GAD pair mirroring configured.
+          {% endif -%}
+          {% endfor -%}
+          {% else -%}
+          No GAD facts could be parsed for the target volume spectrum.
+          {% endif -%}
+          ============================================================
+
+    ####################################################################
+    # Task : Write the Summary Report to a File
+    ####################################################################
+    - name: Write Summary Report to File
+      ansible.builtin.copy:
+        content: "{{ pre_config_report }}"
+        dest: "/tmp/gad_pre_config_report.txt"
+        mode: '0644'
+
+    ####################################################################
+    # Task : Display Summary Report
+    ####################################################################
+    - name: Display Summary Report
+      ansible.builtin.debug:
+        msg: "{{ pre_config_report.splitlines() }}"
+
+    - name: Inform User About the Report File
+      debug:
+        msg: "The GAD Summary Report has been written to /tmp/gad_pre_config_report.txt"

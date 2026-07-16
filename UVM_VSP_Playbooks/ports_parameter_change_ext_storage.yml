@@ -1,0 +1,88 @@
+---
+####################################################################
+# Combined Storage Port Playbook for Multiple Ports
+####################################################################
+- name: Storage Port Module
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    # Common connection info for all tasks
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+    target_ports:
+      - "CL3-A"
+      - "CL7-A"
+      - "CL2-C"
+      - "CL6-C"
+  tasks:
+    #########################################################################
+    # Task 1 : Change port mode setting of the storage ports
+    #########################################################################
+    - name: Change port mode setting of storage ports
+      hitachivantara.vspone_block.vsp.hv_storage_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port: "{{ item }}"
+          port_mode: "FCP-SCSI" # Options: "FC-NVMe", "FCP-SCSI"
+      loop: "{{ target_ports }}"
+      register: result_mode
+
+    - name: Debug port mode change result
+      ansible.builtin.debug:
+        var: result_mode
+
+    ##########################################################################
+    # Task 2 : Change attribute setting of the storage ports
+    ##########################################################################
+    - name: Change attribute setting of storage ports
+      hitachivantara.vspone_block.vsp.hv_storage_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port: "{{ item }}"
+          port_attribute: "TAR" # Options: "TAR", "ALL"
+      loop: "{{ target_ports }}"
+      register: result_attribute
+
+    - name: Debug attribute change result
+      ansible.builtin.debug:
+        var: result_attribute
+
+    ############################################################################
+    # Task 3 : Change port security setting of the storage ports
+    ############################################################################
+    - name: Change port security setting of storage ports
+      hitachivantara.vspone_block.vsp.hv_storage_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port: "{{ item }}"
+          enable_port_security: true
+      loop: "{{ target_ports }}"
+      register: result_security
+
+    - name: Debug security change result
+      ansible.builtin.debug:
+        var: result_security
+
+    ################################################################################################
+    # Task 4 : Change fabric mode and port connection settings of the storage ports
+    ################################################################################################
+    - name: Change fabric mode and port connection settings of storage ports
+      hitachivantara.vspone_block.vsp.hv_storage_port:
+        connection_info: "{{ connection_info }}"
+        spec:
+          port: "{{ item }}"
+          fabric_mode: true
+          port_connection: "P2P" # Options: "FCAL", "P2P", "PtoP"
+      loop: "{{ target_ports }}"
+      register: result_fabric
+
+    - name: Debug fabric mode change result
+      ansible.builtin.debug:
+        var: result_fabric
+

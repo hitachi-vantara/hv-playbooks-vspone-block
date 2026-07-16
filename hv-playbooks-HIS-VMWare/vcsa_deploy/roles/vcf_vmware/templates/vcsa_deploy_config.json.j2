@@ -1,0 +1,41 @@
+{
+  "__version": "2.13.0",
+  "__comments": "VCSA 9.x deployment to standalone ESXi — rendered by Ansible at runtime",
+  "new_vcsa": {
+    "esxi": {
+      "hostname": "{{ esxi_host }}",
+      "username": "{{ esxi_user }}",
+      "password": "{{ esxi_password }}",
+      "deployment_network": "{{ esxi_portgroup }}",
+      "datastore": "{{ esxi_datastore }}"
+    },
+    "appliance": {
+      "thin_disk_mode": true,
+      "deployment_option": "tiny",
+      "name": "{{ vcsa_vm_name }}"
+    },
+    "network": {
+      "ip_family": "ipv4",
+      "mode": "static",
+      "ip": "{{ vcsa_ip }}",
+      "dns_servers": ["{{ vcsa_dns }}"],
+      "prefix": "{{ vcsa_prefix }}",
+      "gateway": "{{ vcsa_gateway }}",
+      "system_name": "{{ vcsa_pnid }}"
+    },
+    "os": {
+      "password": "{{ vcsa_root_password }}",
+      "ssh_enable": true,
+      "ntp_servers": ["{{ vcsa_ntp }}"]
+    },
+    "sso": {
+      "password": "{{ vcsa_sso_password }}",
+      "domain_name": "{{ vcsa_sso_domain }}"
+    }
+  },
+  "ceip": {
+    "settings": {
+      "ceip_enabled": false
+    }
+  }
+}

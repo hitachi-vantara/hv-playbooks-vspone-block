@@ -1,0 +1,20 @@
+# ============================================================
+# requirements.yml
+# Description:
+#   Declares all Ansible Galaxy collections required by the
+#   hv-playbooks-HIS-VMWare project.
+#
+#   Install all collections before running any playbook:
+#     ansible-galaxy collection install -r requirements.yml
+#
+#   Python dependencies:
+#     pip install pyVmomi --break-system-packages
+# ============================================================
+---
+collections:
+  - name: brocade.fos
+
+  - name: community.vmware
+    version: ">=4.0.0"
+
+  - name: hitachivantara.vspone_block

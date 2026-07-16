@@ -1,0 +1,29 @@
+##############################################################
+total_pvols: 16
+start_ldev_id: 2000
+start_ctg_id: 0
+same_pvol_and_svol_id: "Y"
+#start_svol_id: 2016
+path_groups: "2,4"
+multipathing: "Y"
+batch_size: 32
+pvol_ports:
+  - CL1-A,h1
+  - CL4-A,h1
+  - CL5-A,h2
+  - CL8-A,h2
+  - CL1-D,h3
+  - CL2-D,h3
+  - CL3-D,h4
+  - CL4-D,h4
+svol_ports:
+  - CL5-A,GadSvolPort
+primary_pool_id: 0
+secondary_pool_id: 0
+volume_size: "512GB"
+capacity_saving: "Compression_Deduplication"
+quorum_disk_id: 0
+base_name: "gad_vols"
+#data_reduction_share: true
+##############################################################
+

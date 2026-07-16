@@ -1,0 +1,36 @@
+# ============================================================
+# Playbook: brocade-zoning/playbook.yml
+# Description:
+#   Automates Fibre Channel zoning on Brocade G720 switches
+#   using the brocade.fos Ansible collection.
+#
+#   Workflow:
+#     1. Creates a server alias mapped to its WWPN.
+#     2. Builds a zone including both server and storage aliases.
+#     3. Adds the zone into an existing configuration (cfg_name).
+#     4. Activates the updated configuration on the switch.
+#
+#   Credentials are collected interactively at runtime.
+#   All zoning parameters are defined in the inventory.
+#
+#   Usage:
+#     ansible-playbook playbook.yml -i inventory/hosts.yml
+#
+#   Requirements:
+#     ansible-galaxy collection install -r ../requirements.yml
+# ============================================================
+---
+- name: Brocade G720 Zoning
+  hosts: brocade_switches
+  gather_facts: false
+
+  vars_prompt:
+    - name: switch_user
+      prompt: "Enter switch username"
+      private: false
+    - name: switch_password
+      prompt: "Enter switch password"
+      private: true
+
+  roles:
+    - brocade_zoning

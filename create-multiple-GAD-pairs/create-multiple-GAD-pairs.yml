@@ -1,0 +1,255 @@
+---
+- name: GAD Bulk Creation
+  hosts: localhost
+  gather_facts: false
+  vars_files:
+    - ../ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+    secondary_connection_info:
+      address: "{{ secondary_storage_address }}"
+      username: "{{ vault_secondary_storage_username }}"
+      password: "{{ vault_secondary_storage_secret }}"
+
+  tasks:
+
+    - name: Validate start_svol_id when same_pvol_and_svol_id is N
+      fail:
+        msg: "start_svol_id must be defined when same_pvol_and_svol_id = N"
+      when:
+        - same_pvol_and_svol_id == "N"
+        - start_svol_id is not defined
+
+    - name: Prepare path group list and parsed ports
+      set_fact:
+        path_group_list: "{{ path_groups.split(',') | map('int') | list }}"
+        parsed_ports: "{{ pvol_ports | map('regex_replace', '^([^,]+),(.+)$', '{\"port_id\": \"\\1\", \"hostgroup\": \"\\2\"}') | map('from_yaml') | list }}"
+
+    - name: Build per-PG CTG and copy group metadata
+      set_fact:
+        pg_meta: >-
+          {%- set out = {} -%}
+          {%- for i in range(path_group_list | length) -%}
+            {%- set pg = path_group_list[i] | string -%}
+            {%- set _ = out.update({
+              pg: {
+                'ctg_id': (start_ctg_id | int) + i,
+                'copy_group_name': 'gad_copy_group_ctg' ~ ((start_ctg_id | int) + i)
+              }
+            }) -%}
+          {%- endfor -%}
+          {{ out }}
+
+    - name: Generate GAD sequence with LDEV, PG and HG/Port assignments
+      set_fact:
+        gad_sequence: "{{ gad_sequence | default([]) + seq }}"
+        ldev_counter: "{{ (ldev_counter | default(start_ldev_id) | int) + (count | int) }}"
+      vars:
+        count: "{{ (total_pvols | int // (path_group_list | length)) + (1 if (item | int) < (total_pvols | int % (path_group_list | length)) else 0) }}"
+        pg_port_count: "{{ (parsed_ports | length) // (path_group_list | length) }}"
+        pg_ports: "{{ parsed_ports[item * (pg_port_count | int) : (item + 1) * (pg_port_count | int)] }}"
+        seq: >-
+          {%- set out = [] -%}
+          {%- set cnt = count | int -%}
+
+          {%- if multipathing == "Y" -%}
+            {%- set hg_list = pg_ports | map(attribute='hostgroup') | unique | list -%}
+            {%- set per_hg = cnt // (hg_list | length) -%}
+            {%- for i in range(cnt) -%}
+              {%- set hg_idx = [i // per_hg, (hg_list | length) - 1] | min -%}
+              {%- set _ = out.append({
+                'ldev_id': (ldev_counter | default(start_ldev_id) | int) + i,
+                'path_group_id': path_group_list[item],
+                'hostgroup': hg_list[hg_idx]
+              }) -%}
+            {%- endfor -%}
+
+          {%- else -%}
+            {%- set port_list = pg_ports | map(attribute='port_id') | list -%}
+            {%- set vols_per_port = cnt // (port_list | length) -%}
+            {%- for i in range(cnt) -%}
+              {%- set port_idx = [i // vols_per_port, (port_list | length) - 1] | min -%}
+              {%- set port = port_list[port_idx] -%}
+              {%- set hg = (pg_ports | selectattr('port_id', 'equalto', port) | first).hostgroup -%}
+              {%- set _ = out.append({
+                'ldev_id': (ldev_counter | default(start_ldev_id) | int) + i,
+                'path_group_id': path_group_list[item],
+                'hostgroup': hg,
+                'port_id': port
+              }) -%}
+            {%- endfor -%}
+          {%- endif -%}
+
+          {{ out }}
+      loop: "{{ range(path_group_list | length) }}"
+
+    - name: Group sequence by path group
+      set_fact:
+        pg_map: "{{ pg_map | default({}) | combine({item.path_group_id | string: (pg_map[item.path_group_id | string] | default([])) + [item]}) }}"
+      loop: "{{ gad_sequence }}"
+
+    - name: Split into batches per path_group and hostgroup/port
+      set_fact:
+        gad_bulk_batches: "{{ gad_bulk_batches | default([]) + batch_list }}"
+      vars:
+        pg_port_count: "{{ (parsed_ports | length) // (path_group_list | length) }}"
+        pg_idx: "{{ path_group_list.index(item.key | int) }}"
+        pg_ports: "{{ parsed_ports[(pg_idx | int) * (pg_port_count | int) : ((pg_idx | int) + 1) * (pg_port_count | int)] }}"
+        batch_list: >-
+          {%- set out = [] -%}
+          {%- set group_key = 'hostgroup' if multipathing == 'Y' else 'port_id' -%}
+          {%- set group_vals = (pg_ports | map(attribute='hostgroup') | unique | list)
+                               if multipathing == 'Y'
+                               else (pg_ports | map(attribute='port_id') | list) -%}
+
+          {%- for gval in group_vals -%}
+            {%- set items = item.value | selectattr(group_key, 'equalto', gval) | list -%}
+            {%- for i in range(0, items | length, batch_size) -%}
+              {%- set chunk = items[i:i+batch_size] -%}
+              {%- if chunk -%}
+                {%- set _ = out.append({
+                  'ldevs': chunk,
+                  'path_group_id': chunk[0].path_group_id,
+                  'hostgroup': chunk[0].hostgroup
+                }) -%}
+              {%- endif -%}
+            {%- endfor -%}
+          {%- endfor -%}
+
+          {{ out }}
+      loop: "{{ pg_map | dict2items }}"
+
+    - name: Add primary_hostgroups to each batch
+      set_fact:
+        gad_bulk_batches: >-
+          {%- set out = [] -%}
+          {%- for b in gad_bulk_batches -%}
+            {%- if multipathing == "Y" -%}
+              {%- set ports = parsed_ports | selectattr('hostgroup', 'equalto', b.hostgroup)
+                              | map(attribute='port_id')
+                              | map('regex_replace', '^(.*)$', '{"name": "' ~ b.hostgroup ~ '", "port_id": "\\1"}')
+                              | map('from_yaml') | list -%}
+            {%- else -%}
+              {%- set ports = [{'name': b.hostgroup, 'port_id': b.ldevs[0].port_id}] -%}
+            {%- endif -%}
+            {%- set pg_key = b.path_group_id | string -%}
+            {%- set _ = out.append(b | combine({
+              'primary_hostgroups': ports,
+              'ctg_id': pg_meta[pg_key].ctg_id,
+              'copy_group_name': pg_meta[pg_key].copy_group_name
+            })) -%}
+          {%- endfor -%}
+          {{ out }}
+
+    - name: Generate bulk report
+      set_fact:
+        report: |
+          PG | CTG | COPY_GROUP_NAME          | HG | PORTS                    | RANGE       | COUNT
+          -- | --- | ------------------------ | -- | ------------------------ | ----------- | -----
+          {% for b in gad_bulk_batches %}
+          {{ "%-2s | %-3s | %-24s | %-2s | %-24s | %-11s | %-5s" | format(
+            b.path_group_id,
+            b.ctg_id,
+            b.copy_group_name,
+            b.hostgroup,
+            b.primary_hostgroups | map(attribute='port_id') | join(','),
+            b.ldevs[0].ldev_id ~ "-" ~ b.ldevs[-1].ldev_id,
+            b.ldevs | length
+          ) }}
+          {% endfor %}
+
+    - name: Show batch report
+      debug:
+        msg: "{{ report.split('\n') }}"
+
+    - name: Confirm before execution
+      pause:
+        prompt: "Proceed with GAD bulk creation? Type 'yes' to continue, anything else to abort:"
+      register: user_input
+
+    - name: Abort if not confirmed
+      fail:
+        msg: "Execution aborted by user."
+      when: user_input.user_input | lower != "yes"
+
+    - name: Create GAD pairs
+      hitachivantara.vspone_block.vsp.hv_gad_bulk:
+        connection_info: "{{ connection_info }}"
+        secondary_connection_info: "{{ secondary_connection_info }}"
+        spec:
+          number_of_pairs: "{{ item.ldevs | length }}"
+          copy_group_name: "{{ item.copy_group_name }}"
+          copy_pair_base_name: "gad_pair"
+          consistency_group_id: "{{ item.ctg_id }}"
+          is_consistency_group: true
+          primary_pool_id: "{{ primary_pool_id }}"
+          secondary_pool_id: "{{ secondary_pool_id }}"
+          primary_volume_base_name: "{{ base_name }}"
+          primary_volume_base_name_start_number: "{{ item.ldevs[0].ldev_id }}"
+          should_match_volume_ids: true
+          volume_size: "{{ volume_size }}"
+          capacity_saving: "{{ capacity_saving }}"
+          #data_reduction_share: "{{data_reduction_share}}"
+          #virtual_storage_serial_number: "{{ virtual_storage_serial_number }}"
+          quorum_disk_id: "{{ quorum_disk_id }}"
+          primary_hostgroups: "{{ item.primary_hostgroups }}"
+          secondary_hostgroups:
+            - name: "{{ svol_ports[0].split(',')[1] }}"
+              port_id: "{{ svol_ports[0].split(',')[0] }}"
+          begin_primary_volume_id: "{{ item.ldevs[0].ldev_id }}"
+          end_primary_volume_id: "{{ item.ldevs[-1].ldev_id }}"
+          begin_secondary_volume_id: >-
+            {{ (same_pvol_and_svol_id == "N") | ternary(
+              (start_svol_id | default(0) | int) + (item.ldevs[0].ldev_id - start_ldev_id),
+              item.ldevs[0].ldev_id) }}
+          end_secondary_volume_id: >-
+            {{ (same_pvol_and_svol_id == "N") | ternary(
+              (start_svol_id | default(0) | int) + (item.ldevs[-1].ldev_id - start_ldev_id),
+              item.ldevs[-1].ldev_id) }}
+          path_group_id: "{{ item.path_group_id }}"
+      loop: "{{ gad_bulk_batches }}"
+      register: result
+
+    - name: Write GAD pair report
+      copy:
+        content: |
+          Primary_Volume_ID | Secondary_Volume_ID | Consistency_Group_ID | Path_Group_ID | Primary_HGs | Secondary_HGs
+          ----------------- | ------------------- | -------------------- | ------------- | ----------- | --------------
+          {% set all_rows = [] %}
+          {% for r in result.results if not r.failed | default(false) %}
+          {% for pair_wrapper in r.gad_pairs %}
+          {% for pair in pair_wrapper %}
+          {% set _ = all_rows.append({
+            'primary_volume_id': pair.primary_volume_id | int,
+            'secondary_volume_id': pair.secondary_volume_id,
+            'ctg_id': r.invocation.module_args.spec.consistency_group_id,
+            'path_group_id': r.item.path_group_id,
+            'primary_hgs': r.item.primary_hostgroups | map(attribute='name') | unique | join(','),
+            'secondary_hgs': r.invocation.module_args.spec.secondary_hostgroups | map(attribute='name') | unique | join(',')
+          }) %}
+          {% endfor %}
+          {% endfor %}
+          {% endfor %}
+          {% for row in all_rows | sort(attribute='primary_volume_id') %}
+          {{ "%-17s | %-19s | %-20s | %-13s | %-11s | %s" | format(
+            row.primary_volume_id,
+            row.secondary_volume_id,
+            row.ctg_id,
+            row.path_group_id,
+            row.primary_hgs,
+            row.secondary_hgs
+          ) }}
+          {% endfor %}
+        dest: "/tmp/gad_pair_report_{{ lookup('pipe', 'date +%Y%m%d_%H%M%S') }}.txt"
+      register: report_file
+
+    - name: Show report location
+      debug:
+        msg: "GAD Pair Report written to {{ report_file.dest }}"
+
