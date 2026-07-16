@@ -1,0 +1,136 @@
+---
+###############################################################################
+# Playbook : 01_precheck.yml
+#
+# Purpose:
+# Validate Linux, IRIS and Storage before Snapshot operations.
+# Storage validation is performed using Hitachi REST API.
+###############################################################################
+
+- name: Environment Precheck
+  hosts: primary
+  become: yes
+  gather_facts: yes
+
+  vars_files:
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Environment Information
+###############################################################################
+
+    - name: Environment Information
+      debug:
+        msg:
+          - "======================================="
+          - "ENVIRONMENT PRECHECK"
+          - "Hostname : {{ ansible_hostname }}"
+          - "OS       : {{ ansible_distribution }} {{ ansible_distribution_version }}"
+          - "Kernel   : {{ ansible_kernel }}"
+          - "IP       : {{ ansible_default_ipv4.address }}"
+          - "======================================="
+
+###############################################################################
+# Verify Required Linux Commands
+###############################################################################
+
+    - name: Verify Required Linux Commands
+      shell: |
+        for cmd in iris multipath vgchange lvs vgs pvs mount xfs_freeze
+        do
+          command -v $cmd >/dev/null || exit 1
+        done
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Verify Storage REST Connectivity
+###############################################################################
+
+    - name: Verify Storage REST Connectivity
+      hitachivantara.vspone_block.vsp.hv_snapshot_facts:
+        connection_info: "{{ connection_info }}"
+      register: storage_info
+      no_log: true
+
+###############################################################################
+# Verify IRIS Instance
+###############################################################################
+
+    - name: Verify IRIS Environment
+      shell: |
+        iris list | grep "{{ iris_instance }}"
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Validate Mount Points and Logical Volumes
+###############################################################################
+
+    - name: Validate Mount Points and Logical Volumes
+      shell: |
+        # Verify Mount Points
+        for dir in "{{ db_mount }}" "{{ jnl_mount }}" "{{ sys_mount }}"
+        do
+            [ -d "$dir" ] || { echo "Missing mount point: $dir"; exit 1; }
+        done
+
+        # Verify Logical Volumes
+        for lv in "{{ db_lv }}" "{{ jnl_lv }}" "{{ sys_lv }}"
+        do
+            [ -b "$lv" ] || { echo "Missing logical volume: $lv"; exit 1; }
+        done
+
+        # Verify Mounted Filesystems
+        mount | grep "{{ db_mount }}" >/dev/null || exit 1
+        mount | grep "{{ jnl_mount }}" >/dev/null || exit 1
+        mount | grep "{{ sys_mount }}" >/dev/null || exit 1
+
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Validate Snapshot Configuration
+###############################################################################
+
+    - name: Validate Snapshot Configuration
+      assert:
+        that:
+          - snapshot_group is defined
+          - pool_id is defined
+          - primary_ldev_start is defined
+          - primary_ldev_end is defined
+          - secondary_ldev_start is defined
+          - secondary_ldev_end is defined
+          - primary_ldev_start <= primary_ldev_end
+          - secondary_ldev_start <= secondary_ldev_end
+          - (primary_ldev_end - primary_ldev_start) == (secondary_ldev_end - secondary_ldev_start)
+        fail_msg: "Invalid snapshot configuration in var.yml"
+      no_log: true
+
+###############################################################################
+# Summary
+###############################################################################
+
+    - name: Environment Ready
+      debug:
+        msg:
+          - "======================================="
+          - "ENVIRONMENT PRECHECK COMPLETED"
+          - "Linux Validation      : PASSED"
+          - "IRIS Validation       : PASSED"
+          - "REST API Connectivity : PASSED"
+          - "Filesystem Validation : PASSED"
+          - "Snapshot Config       : PASSED"
+          - "Status                : READY"
+          - "======================================="

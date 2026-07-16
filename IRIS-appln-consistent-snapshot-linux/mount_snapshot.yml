@@ -1,0 +1,127 @@
+---
+###############################################################################
+# Playbook : 03_mount_snapshot.yml
+#
+# Purpose:
+# Mount Application Consistent Snapshot on Secondary Server
+###############################################################################
+
+- name: Mount Snapshot on Validation Host
+  hosts: secondary
+  become: yes
+  gather_facts: no
+
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  tasks:
+
+###############################################################################
+# Discover SVOLs on Validation Host
+###############################################################################
+
+    - name: Discover SVOLs on Validation Host
+      shell: |
+        # Discover Fibre Channel devices
+        for host in /sys/class/fc_host/host*; do
+          echo 1 > "${host}/issue_lip"
+        done
+
+        # Rescan SCSI hosts
+        for host in /sys/class/scsi_host/host*; do
+          echo "- - -" > "${host}/scan"
+        done
+
+        # Reload multipath
+        systemctl reload multipathd
+
+        # Wait for devices to appear
+        sleep 60
+        udevadm settle
+
+        # Discover LVM metadata
+        pvscan
+        vgscan
+
+        # Activate imported IRIS volume groups
+        for vg in Iris_vg_DB Iris_vg_JNL Iris_vg_SYS
+        do
+          vgchange -ay "$vg"
+        done
+
+        # Verify logical volumes exist
+        lvs --noheadings | grep -q Iris_DB
+        lvs --noheadings | grep -q Iris_JNL
+        lvs --noheadings | grep -q Iris_SYS
+      args:
+        executable: /bin/bash
+      changed_when: true
+###############################################################################
+# Create Mount Points
+###############################################################################
+
+    - name: Ensure mount directories exist
+      file:
+        path: "{{ item }}"
+        state: directory
+      loop:
+        - "{{ db_mount }}"
+        - "{{ jnl_mount }}"
+        - "{{ sys_mount }}"
+
+###############################################################################
+# Mount Snapshot Volumes
+###############################################################################
+
+    - name: Mount System Volume
+      mount:
+        path: "{{ sys_mount }}"
+        src: "{{ sys_lv }}"
+        fstype: xfs
+        state: mounted
+
+    - name: Mount Database Volume
+      mount:
+        path: "{{ db_mount }}"
+        src: "{{ db_lv }}"
+        fstype: xfs
+        state: mounted
+
+    - name: Mount Journal Volume
+      mount:
+        path: "{{ jnl_mount }}"
+        src: "{{ jnl_lv }}"
+        fstype: xfs
+        state: mounted
+
+###############################################################################
+# Verify Mounted Filesystems
+###############################################################################
+
+    - name: Verify Mounted Filesystems
+      shell: |
+        # Verify all required mount points exist
+        mount | egrep "{{ db_mount }}|{{ jnl_mount }}|{{ sys_mount }}" >/dev/null
+
+        # Verify mounted capacity
+        df -h {{ db_mount }} {{ jnl_mount }} {{ sys_mount }}
+      args:
+        executable: /bin/bash
+      changed_when: false
+
+###############################################################################
+# Summary
+###############################################################################
+
+    - name: SVOL discovery Completed
+      debug:
+        msg:
+          - "======================================="
+          - "SVOLs DISCOVERY COMPLETED SUCCESSFULLY"
+          - "Snapshot LUNs : Discovered"
+          - "Multipath     : Refreshed"
+          - "Volume Groups : Activated"
+          - "Filesystems   : Mounted"
+          - "Status        : Ready for Integrity Check"
+          - "======================================="

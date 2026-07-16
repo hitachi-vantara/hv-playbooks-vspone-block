@@ -1,0 +1,160 @@
+---
+###############################################################################
+# Playbook : 02_snapshot_create.yml
+#
+# Purpose
+# --------
+# Create an Application Consistent Thin Image Advanced Snapshot
+# from an existing Snapshot Group.
+#
+# Workflow
+#
+# 1. Verify Snapshot Group
+# 2. Verify IRIS Running
+# 3. Start BurstWriter Workload
+# 4. Wait 2 Minutes
+# 5. Prepare IRIS and Filesystem for Snapshot
+# 6. Split Snapshot Group
+# 7. Resume Database Operations
+# 8. Verify Snapshot Group reaches PSUS
+###############################################################################
+
+- name: Create Application Consistent Snapshot
+  hosts: primary
+  become: yes
+  gather_facts: false
+
+  vars_files:
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Verify Snapshot Group
+###############################################################################
+
+    - name: Verify Snapshot Group
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: snapshot_status
+
+###############################################################################
+# Verify IRIS
+###############################################################################
+
+    - name: Verify IRIS Running
+      command: iris list
+      register: irislist
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Start BurstWriter
+###############################################################################
+    - name: Start BurstWriter Workload
+      shell: |
+        iris terminal {{ iris_instance }} -U{{ iris_namespace }} <<EOF
+        job ##class(MyApp.Schema.BurstWriter).BurstWriteFor(15)
+        halt
+        EOF
+      async: 900
+      poll: 0
+
+    - name: Wait for Workload Generation
+      shell: sleep 120
+      changed_when: false
+###############################################################################
+# Freeze IRIS, Freeze Filesystem and Flush Data to Disk
+###############################################################################
+
+    - name: Prepare IRIS and Filesystem for snapshot
+      shell: |
+        iris freeze {{ iris_instance }}
+
+        for i in {1..10}
+        do
+          status=$(iris stat {{ iris_instance }} | awk -F'[ ,]+' '/WDSUSPD/ {print $2}')
+          [ "$status" = "1" ] && break
+          sleep 2
+        done
+
+        if [ "$status" != "1" ]; then
+          echo "IRIS Freeze failed."
+          exit 1
+        fi
+
+        xfs_freeze -f {{ db_mount }}
+
+        sync
+      args:
+        executable: /bin/bash
+
+###############################################################################
+# Split Snapshot Group
+###############################################################################
+
+    - name: Split Snapshot Group
+      hitachivantara.vspone_block.vsp.hv_snapshot_group:
+        connection_info: "{{ connection_info }}"
+        state: split
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+          wait_for_final_state: false
+
+###############################################################################
+# Resume Database Operations
+###############################################################################
+
+    - name: Resume Database Operations
+      shell: |
+        xfs_freeze -u {{ db_mount }}
+
+        iris thaw {{ iris_instance }}
+
+        for i in {1..10}
+        do
+          status=$(iris stat {{ iris_instance }} | awk -F'[ ,]+' '/WDSUSPD/ {print $2}')
+          [ "$status" = "0" ] && break
+          sleep 2
+        done
+
+        if [ "$status" != "0" ]; then
+          echo "IRIS Thaw failed."
+          exit 1
+        fi
+      args:
+        executable: /bin/bash
+
+###############################################################################
+# Verify Snapshot Status
+###############################################################################
+
+    - name: Verify Snapshot Group Status
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: snapshot_psus
+
+###############################################################################
+# Summary
+###############################################################################
+
+    - name: Snapshot Completed
+      debug:
+        msg:
+          - "======================================="
+          - "Application Consistent Snapshot Created"
+          - "Snapshot Group : {{ snapshot_group }}"
+          - "Status         : PSUS"
+          - "======================================="

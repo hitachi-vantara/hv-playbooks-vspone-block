@@ -1,0 +1,156 @@
+---
+###############################################################################
+# Playbook : 05_snapshot_pair_creation.yml
+#
+# Purpose:
+# Create Thin Image Advanced Cascade Snapshot Pairs
+# using LDEV ranges defined in group_vars/host.yml.
+###############################################################################
+
+- name: Create Thin Image Advanced Snapshot Group
+  hosts: localhost
+  gather_facts: false
+
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Build Snapshot Pair List
+###############################################################################
+
+    - name: Initialize Snapshot Pair List
+      set_fact:
+        snapshot_pairs: []
+
+    - name: Generate Snapshot Pair List
+      set_fact:
+        snapshot_pairs: >-
+          {{
+            snapshot_pairs +
+            [{
+              'pvol': item,
+              'svol': secondary_ldev_start + (item - primary_ldev_start),
+              'mu': mirror_unit,
+              'group': snapshot_group
+            }]
+          }}
+      loop: "{{ range(primary_ldev_start, primary_ldev_end + 1) | list }}"
+
+###############################################################################
+# Display Pair Count
+###############################################################################
+
+    - name: Pair Count
+      debug:
+        msg: "Creating {{ snapshot_pairs | length }} Thin Image Advanced snapshot pairs."
+
+###############################################################################
+# Create First Pair (Allocates New Consistency Group)
+###############################################################################
+
+    - name: Create first Cascade Snapshot Pair
+      vars:
+        pair: "{{ snapshot_pairs[0] }}"
+
+      hitachivantara.vspone_block.vsp.hv_snapshot:
+
+        state: present
+
+        connection_info: "{{ connection_info }}"
+
+        spec:
+
+          primary_volume_id: "{{ pair.pvol }}"
+          secondary_volume_id: "{{ pair.svol }}"
+          mirror_unit_number: "{{ pair.mu }}"
+          snapshot_group_name: "{{ pair.group }}"
+
+          pool_id: "{{ snapshot_pool_id }}"
+
+          can_cascade: true
+
+          allocate_new_consistency_group: true
+
+          is_data_reduction_force_copy: true
+
+          wait_for_final_state: false
+
+###############################################################################
+# Create Remaining Snapshot Pairs
+###############################################################################
+
+    - name: Create Remaining Cascade Snapshot Pairs
+      vars:
+        pair: "{{ item }}"
+
+      hitachivantara.vspone_block.vsp.hv_snapshot:
+
+        state: present
+
+        connection_info: "{{ connection_info }}"
+
+        spec:
+
+          primary_volume_id: "{{ pair.pvol }}"
+          secondary_volume_id: "{{ pair.svol }}"
+          mirror_unit_number: "{{ pair.mu }}"
+          snapshot_group_name: "{{ pair.group }}"
+
+          pool_id: "{{ snapshot_pool_id }}"
+
+          can_cascade: true
+
+          is_data_reduction_force_copy: true
+
+          wait_for_final_state: false
+
+      loop: "{{ snapshot_pairs[1:] }}"
+
+      loop_control:
+        label: "PVOL={{ pair.pvol }}"
+
+###############################################################################
+# Verify Snapshot Group
+###############################################################################
+
+    - name: Get Snapshot Group Facts
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: snapshot_group_info
+
+      retries: 30
+      delay: 2
+
+      until: snapshot_group_info.ansible_facts is defined
+
+###############################################################################
+# Completion Summary
+###############################################################################
+
+    - name: Snapshot Summary
+      debug:
+        msg:
+          - "===================================================="
+          - " Thin Image Advanced Snapshot Pair Creation Completed"
+          - ""
+          - " Snapshot Group : {{ snapshot_group }}"
+          - " Pool ID        : {{ snapshot_pool_id }}"
+          - " Mirror Unit    : {{ mirror_unit }}"
+          - " Total Pairs    : {{ snapshot_pairs | length }}"
+          - " Consistency    : Single CTG"
+          - " Cascade        : Enabled"
+          - ""
+          - " Status         : SUCCESS"
+          - "===================================================="
