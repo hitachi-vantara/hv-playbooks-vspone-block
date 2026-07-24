@@ -186,7 +186,7 @@ sha256sum -c SHA256SUMS
 Clone the repository and change to the repository directory:
 
 ```bash
-git clone https://github.com/hitachi-vantara/proxmox-vspone-block.git
+git clone https://github.com/hitachi-vantara/hv-playbooks-vspone-block.git
 cd proxmox-vspone-block
 ```
 
