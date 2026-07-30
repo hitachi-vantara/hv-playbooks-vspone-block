@@ -89,6 +89,11 @@ This playbook takes user inputs such as local/remote port pairs and remote path 
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/create-multiple-remote-paths/Readme.md) for more info.
 
+## Playbook: [IRIS-appln-consistent-snapshot-linux](IRIS-appln-consistent-snapshot-linux)
+This playbook automates the end-to-end creation and validation of application-consistent Thin Image Advanced (TIA) Cascade snapshots for an InterSystems IRIS database running on Red Hat Enterprise Linux (RHEL). Built using Ansible and the Hitachi VSP One Block Ansible Collection, the solution eliminates manual intervention while ensuring consistent, repeatable, and reliable snapshot operations.
+
+See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/IRIS-appln-consistent-snapshot-linux/Readme.md) for more info.
+
 ## Playbook: [Create Multiple Data Volumes](create-multiple-data-volumes)
 In enterprise-class environments, a large number of volumes are typically required. This playbook accepts an LDEV range for each pool, along with additional configuration parameters such as ADR settings, size, and more. It is designed to run on both MCU and RCU systems, or on either one individually.
 
