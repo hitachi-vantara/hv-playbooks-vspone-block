@@ -30,9 +30,6 @@ Precheck
 Create TIA Snapshot Pairs
     │
     ▼
-Start BurstWriter Workload
-    │
-    ▼
 Freeze IRIS + Freeze XFS
     │
     ▼
