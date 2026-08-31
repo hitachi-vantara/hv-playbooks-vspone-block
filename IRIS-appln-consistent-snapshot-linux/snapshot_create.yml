@@ -11,12 +11,10 @@
 #
 # 1. Verify Snapshot Group
 # 2. Verify IRIS Running
-# 3. Start BurstWriter Workload
-# 4. Wait 2 Minutes
-# 5. Prepare IRIS and Filesystem for Snapshot
-# 6. Split Snapshot Group
-# 7. Resume Database Operations
-# 8. Verify Snapshot Group reaches PSUS
+# 3. Prepare IRIS and Filesystem for Snapshot
+# 4. Split Snapshot Group
+# 5. Resume Database Operations
+# 6. Verify Snapshot Group reaches PSUS
 ###############################################################################
 
 - name: Create Application Consistent Snapshot
@@ -58,21 +56,6 @@
       changed_when: false
       no_log: true
 
-###############################################################################
-# Start BurstWriter
-###############################################################################
-    - name: Start BurstWriter Workload
-      shell: |
-        iris terminal {{ iris_instance }} -U{{ iris_namespace }} <<EOF
-        job ##class(MyApp.Schema.BurstWriter).BurstWriteFor(15)
-        halt
-        EOF
-      async: 900
-      poll: 0
-
-    - name: Wait for Workload Generation
-      shell: sleep 120
-      changed_when: false
 ###############################################################################
 # Freeze IRIS, Freeze Filesystem and Flush Data to Disk
 ###############################################################################
