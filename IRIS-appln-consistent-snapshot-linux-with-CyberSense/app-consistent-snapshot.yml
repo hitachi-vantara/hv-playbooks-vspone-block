@@ -1,0 +1,732 @@
+---
+
+###############################################################################
+
+# Playbook : 01-app-consistent-snapshot.yml
+
+#
+
+# Purpose:
+
+# --------
+
+# Create an Application Consistent Snapshot using CyberSense.
+
+#
+
+# Workflow:
+
+# ---------
+
+# 1. Capture existing Snapshot Groups
+
+# 2. Freeze IRIS
+
+# 3. Verify WDSUSPD = 1
+
+# 4. Freeze XFS
+
+# 5. Execute CyberSense Policy
+
+# 6. Wait for CyberSense Job
+
+# 7. Discover newly created Snapshot Group
+
+# 8. Unfreeze XFS
+
+# 9. Thaw IRIS
+
+# 10. Verify WDSUSPD = 0
+
+# 11. Map Floating Snapshots
+
+#
+
+# IMPORTANT:
+
+# -----------
+
+# snapshot_group is NOT defined in var.yml.
+
+# CyberSense creates the Snapshot Group.
+
+# The newly created Snapshot Group is discovered dynamically.
+
+###############################################################################
+
+- name: Application Consistent Snapshot Workflow
+  hosts: primary-server
+  become: true
+  gather_facts: false
+
+  vars_files:
+
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+
+# Capture Existing Snapshot Groups
+
+###############################################################################
+
+
+    - name: Get Existing Snapshot Groups
+      hitachivantara.vspone_block.vsp.hv_vsp_one_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          include_snapshots: true
+      register: existing_snapshot_groups
+      no_log: true
+
+###############################################################################
+
+# Application Consistent Snapshot Preparation
+
+###############################################################################
+
+    - name: Application Consistent Snapshot
+      block:
+
+###############################################################################
+# Freeze IRIS
+###############################################################################
+
+        - name: Freeze IRIS Instance
+          ansible.builtin.command:
+            cmd: "iris freeze {{ iris_instance }}"
+          changed_when: true
+
+        - name: Wait After IRIS Freeze
+          ansible.builtin.pause:
+            seconds: 1
+
+###############################################################################
+# Verify WDSUSPD = 1
+###############################################################################
+
+        - name: Verify IRIS Freeze WDSUSPD
+          ansible.builtin.shell: |
+            for i in {1..10}
+            do
+              status=$(iris stat {{ iris_instance }} |
+                awk -F'[ ,]+' '/WDSUSPD/ {print $2}')
+
+              if [ "$status" = "1" ]; then
+                echo "$status"
+                exit 0
+              fi
+
+              sleep 2
+            done
+
+            echo "$status"
+            exit 1
+          args:
+            executable: /bin/bash
+          register: iris_freeze_status
+          changed_when: false
+          no_log: true
+
+###############################################################################
+# Confirm IRIS Freeze
+###############################################################################
+
+        - name: Confirm IRIS Freeze
+          ansible.builtin.assert:
+            that:
+              - iris_freeze_status.stdout | int == 1
+            fail_msg: "IRIS Freeze failed. WDSUSPD did not reach 1."
+            success_msg: "IRIS Freeze successful. WDSUSPD=1."
+
+###############################################################################
+# Freeze XFS
+###############################################################################
+
+        - name: Freeze XFS Filesystem
+          ansible.builtin.command:
+            cmd: "xfs_freeze -f {{ db_mount }}"
+
+###############################################################################
+# Flush Filesystem Buffers
+###############################################################################
+
+        - name: Flush Filesystem Buffers
+          ansible.builtin.command:
+            cmd: sync
+          changed_when: false
+
+###############################################################################
+# CyberSense Authentication
+###############################################################################
+
+###############################################################################
+# Login to CyberSense
+###############################################################################
+
+        - name: Create CyberSense Session
+          ansible.builtin.uri:
+            url: "https://{{ cybersense_ip }}/ierest/v1/sessions"
+            method: POST
+            validate_certs: false
+            body_format: json
+            body:
+              user_name: "{{ cybersense_username }}"
+              password: "{{ cybersense_password }}"
+            headers:
+              Accept: application/json
+              Content-Type: application/json
+            status_code: 200
+          register: cybersense_login
+
+        - name: Save CyberSense Session ID
+          ansible.builtin.set_fact:
+            cybersense_token: "{{ cybersense_login.json.sessionid }}"
+
+        - name: Display Session ID
+          ansible.builtin.debug:
+            msg: "CyberSense Session ID : {{ cybersense_token }}"
+
+###############################################################################
+# Get CyberSense Policy
+###############################################################################
+
+        - name: Retrieve CyberSense Policies
+          ansible.builtin.uri:
+            url: "https://{{ cybersense_ip }}/ierest/v1/policies"
+            method: GET
+            validate_certs: false
+            headers:
+              Accept: application/json
+              sessionid: "{{ cybersense_token }}"
+            status_code: 200
+          register: policy_list
+
+        - name: Get Policy ID
+          ansible.builtin.set_fact:
+            policy_id: >-
+              {{
+                (
+                  policy_list.json
+                  | selectattr('display_name', 'equalto', cybersense_policy_name)
+                  | list
+                  | first
+                ).policy
+              }}
+
+        - name: Display Policy ID
+          ansible.builtin.debug:
+            msg: "Policy ID : {{ policy_id }}"
+
+###############################################################################
+# Execute CyberSense Policy
+###############################################################################
+
+        - name: Execute CyberSense Policy
+          ansible.builtin.uri:
+            url: "https://{{ cybersense_ip }}/ierest/v1/policies/{{ policy_id }}/jobs"
+            method: POST
+            validate_certs: false
+            body_format: json
+            body:
+              start: true
+            headers:
+              Accept: application/json
+              Content-Type: application/json
+              sessionid: "{{ cybersense_token }}"
+            status_code: 200
+          register: job_result
+
+        - name: Save Job ID
+          ansible.builtin.set_fact:
+            job_id: "{{ job_result.json.jobid }}"
+
+        - name: Display Job ID
+          ansible.builtin.debug:
+            msg: "CyberSense Job ID : {{ job_id }}"
+###############################################################################
+# Wait for New Snapshot Group
+###############################################################################
+
+        - name: Wait for CyberSense Snapshot Group Creation
+          hitachivantara.vspone_block.vsp.hv_vsp_one_snapshot_group_facts:
+            connection_info: "{{ connection_info }}"
+            spec:
+              include_snapshots: true
+          register: current_snapshot_groups
+          until: >
+            (
+              current_snapshot_groups.ansible_facts.snapshots
+              | map(attribute='name')
+              | list
+              |
+              difference(
+                existing_snapshot_groups.ansible_facts.snapshots
+                | map(attribute='name')
+                | list
+              )
+              | length
+            ) >= 1
+          retries: 60
+          delay: 2
+          no_log: true
+###############################################################################
+# Identify Newly Created Snapshot Group
+###############################################################################
+
+        - name: Identify Newly Created Snapshot Group
+          ansible.builtin.set_fact:
+            new_snapshot_groups: >-
+              {{
+                (
+                  current_snapshot_groups.ansible_facts.snapshots
+                  | map(attribute='name')
+                  | list
+                )
+                |
+                difference(
+                  existing_snapshot_groups.ansible_facts.snapshots
+                  | map(attribute='name')
+                  | list
+                )
+              }}
+
+        - name: Validate Newly Created Snapshot Group
+          ansible.builtin.assert:
+            that:
+              - new_snapshot_groups | length >= 1
+            fail_msg: >-
+              No new Snapshot Group was detected after CyberSense Job {{ job_id }}.
+            success_msg: >-
+              New Snapshot Group detected:
+              {{ new_snapshot_groups }}
+
+        - name: Save CyberSense Snapshot Group
+          ansible.builtin.set_fact:
+            snapshot_group: "{{ new_snapshot_groups[0] }}"
+
+        - name: Display Discovered Snapshot Group
+          ansible.builtin.debug:
+            msg:
+              - "CyberSense Job ID       : {{ job_id }}"
+              - "CyberSense Snapshot Group: {{ snapshot_group }}"
+###############################################################################
+# DEBUG - Get CyberSense Snapshot Group Status
+###############################################################################
+
+        - name: DEBUG CyberSense Snapshot Group Status
+          hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+            connection_info: "{{ connection_info }}"
+            spec:
+              snapshot_group_name: "{{ snapshot_group }}"
+          register: cybersense_snapshot_status
+
+###############################################################################
+# Wait Until CyberSense Snapshot Leaves In Sync
+###############################################################################
+
+        - name: Get CyberSense Snapshot Status
+          hitachivantara.vspone_block.vsp.hv_vsp_one_snapshot_facts:
+            connection_info: "{{ connection_info }}"
+            spec:
+              snapshot_group_name: "{{ snapshot_group }}"
+          register: cybersense_snapshot_status
+          retries: 60
+          delay: 2
+          until:
+            - cybersense_snapshot_status is succeeded
+            - >
+              (
+                cybersense_snapshot_status.ansible_facts.snapshots
+                | default([])
+                | selectattr('status', 'equalto', 'In Sync')
+                | list
+                | length
+              ) == 0
+
+        - name: Display CyberSense Snapshot Final Status
+          ansible.builtin.debug:
+            msg:
+              - "Snapshot Group: {{ snapshot_group }}"
+              - >-
+                Snapshot Statuses:
+                {{
+                  cybersense_snapshot_status.ansible_facts.snapshots
+                  | map(attribute='status')
+                  | list
+                }}
+              - >-
+                Mirror Units:
+                {{
+                  cybersense_snapshot_status.ansible_facts.snapshots
+                  | map(attribute='snapshot_id')
+                  | list
+                }}
+###############################################################################
+# Extract CyberSense Mirror Unit Number
+###############################################################################
+
+        - name: Extract CyberSense Mirror Unit Number
+          ansible.builtin.set_fact:
+            cybersense_mirror_unit_number: >-
+              {{
+                cybersense_snapshot_status.ansible_facts.snapshots[0].snapshot_id
+              }}
+
+        - name: Display CyberSense Mirror Unit Number
+          ansible.builtin.debug:
+            msg: >-
+              CyberSense assigned Mirror Unit Number:
+              {{ cybersense_mirror_unit_number }}
+###############################################################################
+# Unfreeze XFS
+###############################################################################
+
+        - name: Unfreeze XFS Filesystem
+          ansible.builtin.command:
+            cmd: "xfs_freeze -u {{ db_mount }}"
+          ignore_errors: true
+
+###############################################################################
+# Thaw IRIS
+###############################################################################
+
+        - name: Thaw IRIS Instance
+          ansible.builtin.command:
+            cmd: "iris thaw {{ iris_instance }}"
+          ignore_errors: true
+
+        - name: Wait After IRIS Thaw
+          ansible.builtin.pause:
+            seconds: 1
+
+###############################################################################
+# Verify WDSUSPD = 0
+###############################################################################
+
+        - name: Verify IRIS Thaw WDSUSPD
+          ansible.builtin.shell: |
+            for i in {1..10}
+            do
+              status=$(iris stat {{ iris_instance }} |
+                awk -F'[ ,]+' '/WDSUSPD/ {print $2}')
+
+              if [ "$status" = "0" ]; then
+                echo "$status"
+                exit 0
+              fi
+
+              sleep 2
+            done
+
+            echo "$status"
+            exit 1
+          args:
+            executable: /bin/bash
+          register: iris_thaw_status
+          changed_when: false
+          no_log: true
+
+        - name: Confirm IRIS Thaw
+          ansible.builtin.assert:
+            that:
+              - iris_thaw_status.stdout | int == 0
+            fail_msg: "IRIS Thaw failed. WDSUSPD did not reach 0."
+            success_msg: "IRIS Thaw successful. WDSUSPD=0."
+
+###############################################################################
+
+# Save IRIS Thaw Result
+
+###############################################################################
+
+
+        - name: Save IRIS Thaw Result
+          ansible.builtin.set_fact:
+            iris_thaw_result: >-
+              {{
+                'PASS'
+                if (iris_thaw_status.stdout | default('1') | int) == 0
+                else 'FAIL'
+              }}
+
+###############################################################################
+# Wait for CyberSense Job Completion
+###############################################################################
+
+        - name: Wait for CyberSense Job to Complete
+          ansible.builtin.uri:
+            url: "https://{{ cybersense_ip }}/ierest/cybersense-api/v1/policy_jobs_info?limit=1000"
+            method: GET
+            validate_certs: false
+            headers:
+              Accept: application/json
+              sessionid: "{{ cybersense_token }}"
+            status_code: 200
+          register: job_status
+          until: >
+            (
+              job_status.json.jobs
+              | selectattr('job_id', 'equalto', job_id)
+              | map(attribute='job_state')
+              | first
+            ) == 'Done'
+          retries: 60
+          delay: 30
+          no_log: true
+
+###############################################################################
+# Verify Job Completed Successfully
+###############################################################################
+
+        - name: Get Final Job State
+          ansible.builtin.set_fact:
+            final_job_state: >-
+              {{
+                (
+                  job_status.json.jobs
+                  | selectattr('job_id', 'equalto', job_id)
+                  | map(attribute='job_state')
+                  | first
+                )
+              }}
+
+        - name: Display Job Status
+          ansible.builtin.debug:
+            msg:
+              - "CyberSense Job Completed"
+              - "Job ID    : {{ job_id }}"
+              - "Job State : {{ final_job_state }}"
+
+###############################################################################
+
+        - name: Verify Discovered Snapshot Group
+          hitachivantara.vspone_block.vsp.hv_vsp_one_snapshot_group_facts:
+            connection_info: "{{ connection_info }}"
+            spec:
+              snapshot_group_name: "{{ snapshot_group }}"
+              include_snapshots: true
+          register: discovered_snapshot_status
+          no_log: true
+
+###############################################################################
+# Discover MU Number Created by CyberSense
+###############################################################################
+
+        - name: Discover CyberSense Snapshot MU Number
+          ansible.builtin.set_fact:
+            mirror_unit_number: >-
+              {{
+                discovered_snapshot_status.ansible_facts.snapshots[0].snapshots[0].snapshot_id
+              }}
+
+        - name: Validate CyberSense Snapshot MU Number
+          ansible.builtin.assert:
+            that:
+              - mirror_unit_number is defined
+              - mirror_unit_number | int >= 0
+            fail_msg: >-
+              Could not determine the MU number from CyberSense Snapshot Group
+              {{ snapshot_group }}.
+            success_msg: >-
+              CyberSense Snapshot Group {{ snapshot_group }} is using MU
+              {{ mirror_unit_number }}.
+
+###############################################################################
+
+# Build Snapshot Summary
+
+###############################################################################
+
+        - name: Build Snapshot Summary
+          ansible.builtin.set_fact:
+            snapshot_summary:
+              snapshot_group: "{{ snapshot_group }}"
+              job_id: "{{ job_id }}"
+              job_state: "{{ final_job_state }}"
+              iris_freeze: >-
+                {{
+                  'PASS'
+                  if (iris_freeze_status.stdout | default('0') | int) == 1
+                  else 'FAIL'
+                }}
+              snapshot_verified: >-
+                {{
+                  'PASS'
+                  if discovered_snapshot_status is succeeded
+                  else 'FAIL'
+                }}
+              iris_thaw: "{{ iris_thaw_result }}"
+
+
+###############################################################################
+# Display Snapshot Summary
+###############################################################################
+
+        - name: Display Application Consistent Snapshot Summary
+          ansible.builtin.debug:
+            msg:
+              - "============================================================"
+              - "        APPLICATION CONSISTENT SNAPSHOT SUMMARY"
+              - "============================================================"
+              - ""
+              - "Snapshot Group        : {{ snapshot_group }}"
+              - "CyberSense Job ID     : {{ job_id }}"
+              - "CyberSense Job State  : {{ final_job_state }}"
+              - "IRIS Freeze           : PASS"
+              - "Snapshot Verification : PASS"
+              - "IRIS Thaw             : PASS"
+              - ""
+              - "============================================================"
+###############################################################################
+# PLAY 2
+#
+# Map Floating Snapshot
+#
+# The snapshot_group variable is created dynamically by PLAY 1 after
+# CyberSense creates the snapshot group.
+###############################################################################
+
+- name: Map Floating Snapshot
+  hosts: primary-server
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Verify Runtime Snapshot Group
+###############################################################################
+
+    - name: Verify Snapshot Group Was Discovered
+      ansible.builtin.assert:
+        that:
+          - snapshot_group is defined
+          - snapshot_group | string | length > 0
+        fail_msg: >-
+          Snapshot Group was not discovered by the previous play.
+      no_log: true
+
+
+###############################################################################
+# Verify Snapshot Group Before Mapping
+###############################################################################
+
+    - name: Verify Snapshot Group Before Mapping
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: snapshot_before_mapping
+      no_log: true
+
+###############################################################################
+# Map Floating Snapshots
+###############################################################################
+
+    - name: Map Floating Snapshots
+      hitachivantara.vspone_block.vsp.hv_snapshot:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          primary_volume_id: "{{ item.primary_volume_id }}"
+          secondary_volume_id: "{{ item.secondary_volume_id }}"
+          snapshot_group_name: "{{ snapshot_group }}"
+          mirror_unit_number: "{{ mirror_unit_number }}"
+          can_cascade: true
+          is_data_reduction_force_copy: true
+      loop: "{{ floating_snapshot_mapping }}"
+      register: floating_snapshot_mapping_result
+
+
+###############################################################################
+# Verify Floating Snapshot Mapping
+###############################################################################
+
+    - name: Verify Floating Snapshot Mapping
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ snapshot_group }}"
+      register: mapping_verification
+
+
+###############################################################################
+# Validate Floating Snapshot Mapping
+###############################################################################
+
+    - name: Validate Floating Snapshot Mapping
+      ansible.builtin.assert:
+        that:
+          - floating_snapshot_mapping_result is defined
+          - floating_snapshot_mapping_result.results is defined
+          - floating_snapshot_mapping_result.results | length == floating_snapshot_mapping | length
+        fail_msg: >-
+          Floating snapshot mapping did not complete for all configured
+          volumes.
+        success_msg: >-
+          Floating snapshot mapping completed successfully for all
+          configured volumes.
+      no_log: true
+
+###############################################################################
+# Mapping Summary
+###############################################################################
+
+    - name: Floating Snapshot Mapping Completed
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "============================================================"
+          - "       FLOATING SNAPSHOT MAPPING COMPLETED"
+          - "============================================================"
+          - ""
+          - "Snapshot Group            : {{ snapshot_group }}"
+          - "Floating Snapshot Mapping : COMPLETED"
+          - "Snapshot Verification     : PASSED"
+          - ""
+          - "============================================================"
+
+###############################################################################
+# Final Success Banner
+###############################################################################
+
+    - name: Snapshot Workflow Completed Successfully
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "============================================================"
+          - "          APPLICATION CONSISTENT SNAPSHOT SUCCESS"
+          - "============================================================"
+          - ""
+          - "CyberSense Snapshot Group : {{ snapshot_group }}"
+          - "CyberSense Job ID         : {{ job_id }}"
+          - "CyberSense Job State      : {{ final_job_state }}"
+          - ""
+          - "IRIS Freeze               : PASS"
+          - "Snapshot Verification     : PASS"
+          - "IRIS Thaw                 : PASS"
+          - ""
+          - "Floating Snapshot Mapping : PASSED"
+          - ""
+          - "============================================================"
+          - "       APPLICATION CONSISTENT SNAPSHOT READY"
+          - "============================================================"

@@ -1,0 +1,134 @@
+---
+###############################################################################
+# Playbook : 03_mount_snapshot.yml
+#
+# Purpose:
+# Mount Application Consistent Snapshot on Secondary Server
+###############################################################################
+
+- name: Mount Snapshot on Validation Host
+  hosts: secondary
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  tasks:
+
+    ###########################################################################
+    # Discover SVOLs on Validation Host
+    ###########################################################################
+
+    - name: Discover SVOLs on Validation Host
+      ansible.builtin.shell: |
+        # Discover Fibre Channel devices
+        for host in /sys/class/fc_host/host*; do
+          echo 1 > "${host}/issue_lip"
+        done
+
+        # Rescan SCSI hosts
+        for host in /sys/class/scsi_host/host*; do
+          echo "- - -" > "${host}/scan"
+        done
+
+        # Reload multipath
+        systemctl reload multipathd
+
+        # Wait for devices to appear
+        sleep 60
+        udevadm settle
+
+        # Discover LVM metadata
+        pvscan
+        vgscan
+
+        # Activate imported IRIS volume groups
+        vgchange -ay "{{ db_vg }}"
+        vgchange -ay "{{ jnl_vg }}"
+        vgchange -ay "{{ sys_vg }}"
+
+        # Verify logical volumes exist
+        lvs --noheadings | grep -q "{{ db_lv_name }}"
+        lvs --noheadings | grep -q "{{ jnl_lv_name }}"
+        lvs --noheadings | grep -q "{{ sys_lv_name }}"
+      args:
+        executable: /bin/bash
+      changed_when: true
+      no_log: true
+
+    ###########################################################################
+    # Create Mount Points
+    ###########################################################################
+
+    - name: Ensure Mount Directories Exist
+      ansible.builtin.file:
+        path: "{{ item }}"
+        state: directory
+        mode: "0755"
+      loop:
+        - "{{ db_mount }}"
+        - "{{ jnl_mount }}"
+        - "{{ sys_mount }}"
+      no_log: true
+
+    ###########################################################################
+    # Mount Snapshot Volumes
+    ###########################################################################
+
+    - name: Mount Snapshot Volumes
+      ansible.posix.mount:
+        path: "{{ item.mount }}"
+        src: "/dev/mapper/{{ item.vg }}-{{ item.lv }}"
+        fstype: xfs
+        state: mounted
+      loop:
+        - mount: "{{ sys_mount }}"
+          vg: "{{ sys_vg }}"
+          lv: "{{ sys_lv_name }}"
+
+        - mount: "{{ db_mount }}"
+          vg: "{{ db_vg }}"
+          lv: "{{ db_lv_name }}"
+
+        - mount: "{{ jnl_mount }}"
+          vg: "{{ jnl_vg }}"
+          lv: "{{ jnl_lv_name }}"
+      no_log: true
+      changed_when: false
+
+    ###########################################################################
+    # Verify Mounted Filesystems
+    ###########################################################################
+
+    - name: Verify Mounted Filesystems
+      ansible.builtin.shell: |
+        mountpoint -q "{{ sys_mount }}"
+        mountpoint -q "{{ db_mount }}"
+        mountpoint -q "{{ jnl_mount }}"
+
+        df -h "{{ sys_mount }}" "{{ db_mount }}" "{{ jnl_mount }}"
+      args:
+        executable: /bin/bash
+      changed_when: false
+      no_log: true
+    ###########################################################################
+    # Summary
+    ###########################################################################
+
+    - name: SVOL Discovery Completed
+      ansible.builtin.debug:
+        msg:
+          - "=============================================="
+          - "   SVOL DISCOVERY COMPLETED SUCCESSFULLY"
+          - "=============================================="
+          - ""
+          - "Snapshot LUNs : Discovered"
+          - "Multipath     : Refreshed"
+          - "Volume Groups : Activated"
+          - "Filesystems   : Mounted"
+          - "Status        : Ready for Integrity Check"
+          - ""
+          - "=============================================="
+
