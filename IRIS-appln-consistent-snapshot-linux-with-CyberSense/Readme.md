@@ -20,7 +20,7 @@ Consistency:		    Application + Filesystem Consistency
 
 Below diagram depicts a standard IRIS database environment.
 
-![IRIS_configuration_diagram.png](./assets/IRIS_configuration_diagram.png)
+![Configuration_Diagram_IRIS_Cybersense.png](./assets/Configuration_Diagram_IRIS_Cybersense.png)
 
 ## Workflow
 
