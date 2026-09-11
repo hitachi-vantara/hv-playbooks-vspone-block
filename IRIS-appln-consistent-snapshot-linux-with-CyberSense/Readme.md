@@ -1,7 +1,6 @@
-# InterSystems IRIS Application Consistency Automation with Hitachi Block Storage
+# Ansible Automation for InterSystems IRIS Application Consistency with CyberSense  and Hitachi Block Storage
 
-Ansible automation to create **application-consistent Thin Image Advanced (TIA) Cascade snapshots** of an **InterSystems IRIS** database running on **Red Hat Enterprise Linux (RHEL)**.
-The playbook validates the environment, creates an application-consistent snapshot, mounts the recovery copy on a secondary server, validates database integrity, and cleans up the snapshot environment.
+Ansible automation for creating **application-consistent Thin Image Advanced (TIA) snapshots** of an **InterSystems IRIS** database with **CyberSense** running on **Red Hat Enterprise Linux (RHEL)**. The playbook validates the environment, freezes the IRIS database to ensure application consistency, creates a TIA snapshot, and initiates a **CyberSense scan** of the application-consistent snapshot to verify that the recovery copy is **clean and free from malware**. The validated recovery copy is subsequently mounted and validated on a secondary server to ensure database integrity and recoverability.
 
 ## Solution Overview
 
@@ -12,6 +11,8 @@ Database:		        InterSystems IRIS
 Operating System:		Red Hat Enterprise Linux
 
 Snapshot Technology:	Thin Image Advanced (Cascade, CTG)
+
+Cyber Resilience:        CyberSense
 
 Consistency:		    Application + Filesystem Consistency
 
@@ -24,31 +25,37 @@ Below diagram depicts a standard IRIS database environment.
 ## Workflow
 
 ```
-Precheck
+Environment Precheck
     │
     ▼
-Create TIA Snapshot Pairs
+Application Freeze (IRIS + File System Freeze)
     │
     ▼
-Start BurstWriter Workload
+CyberSense Policy Trigger
     │
     ▼
-Freeze IRIS + Freeze XFS
+Snapshot Status Check
     │
     ▼
-Split TIA Snapshot Pairs
+Application Unfreeze
     │
     ▼
-Unfreeze XFS + Thaw IRIS
+CyberSense Job Completion
     │
     ▼
-Mount Snapshot on Secondary Server
+ SVOL Mapping
     │
     ▼
-Start IRIS & Run Integrity Check
+Snap-on-Snap Creation
     │
     ▼
-Stop IRIS → Unmount Snapshot → Delete Snapshot
+Map Snapshots & Activate VGs
+    │
+    ▼
+Start IRIS & Validate Integrity
+    │
+    ▼
+Cleanup
 ```
 ## Repository Structure
 
@@ -58,10 +65,11 @@ IRIS_appln_consistency_playbook/
 ├── var.yml                      # Common variables used by all playbooks
 ├── main.yml                     # Executes the complete end-to-end workflow
 ├── precheck.yml                 # Environment validation
-├── snapshot_pair_creation.yml   # Create TIA pair with cascade CTG 
-├── snapshot_create.yml          # Create application-consistent TIA snapshot
+├── app-consistent-snapshot.yml   # Create application-consistent TIA snapshot with Cybersense 
+├── snap-on-snap.yml          # Create snap-on-snap
 ├── mount_snapshot.yml           # Mount snapshot volumes on secondary server
-├── integrity_check_cleanup.yml  # Start IRIS, run user database integrity check, and perform cleanup
+├── integrity_check.yml     # Start IRIS, run user database integrity check, and perform cleanup
+├── cleanup.yml         # Perform cleanup
 ```
 
 ## Prerequisites
@@ -101,6 +109,10 @@ ansible_python_interpreter=/usr/bin/python3
 
 •	Multipath and LVM configured on both hosts
 
+•	Cybersense installed and licensed
+
+•	Policy already created on Cybersense prior to execution of playbook
+
 
 ## Environment Variables
 
@@ -116,17 +128,23 @@ A typical variable file includes:
 
 • Mount points
 
+• Volume Groups
+
 • Logical Volumes
 
-• Snapshot Group
+• Floating snapshot mapping (Primary volume ID and Secondary volume ID)
 
-• Snapshot Pool ID
+• Cascade Snapshot Group
 
-• Mirror Unit
+• Cascade  Pool ID
 
-• Primary LDEV Range
+• Cascade Snapshot Pairs (Primary volume ID and Secondary volume ID)
 
-• Secondary LDEV Range
+• Cybersense IP
+
+• Cybersense Login Credentials
+
+• Cybersense Policy Name
 
 ## Execution
 
