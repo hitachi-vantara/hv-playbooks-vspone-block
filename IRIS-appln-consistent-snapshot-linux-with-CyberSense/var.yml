@@ -1,0 +1,75 @@
+---
+#==============================
+# IRIS
+#==============================
+iris_instance: iris
+iris_namespace: Epic_DB
+db_dir: "/userDB/Epic_DB"
+
+#==============================
+# Mount Points
+#==============================
+db_mount: /userDB
+jnl_mount: /JNL
+sys_mount: /IRIS
+
+#==============================
+# Volume Groups
+#==============================
+db_vg: Iris_vg_DB
+jnl_vg: Iris_vg_JNL
+sys_vg: Iris_vg_SYS
+
+#==============================
+# Logical Volumes
+#==============================
+db_lv_name: Iris_DB
+jnl_lv_name: Iris_JNL
+sys_lv_name: Iris_SYS
+
+###############################################################################
+# Snapshot Configuration
+###############################################################################
+
+  #snapshot_group: MP-0
+
+floating_snapshot_mapping:
+
+ - { primary_volume_id: 15, secondary_volume_id: 1001 }
+ - { primary_volume_id: 16, secondary_volume_id: 1002 }
+ - { primary_volume_id: 17, secondary_volume_id: 1003 }
+ - { primary_volume_id: 18, secondary_volume_id: 1004 }
+ - { primary_volume_id: 19, secondary_volume_id: 1005 }
+
+###############################################################################
+# Snap-on-Snap Configuration
+###############################################################################
+
+cascade_snapshot_group: "MP-0"
+
+cascade_pool_id: 0
+
+cascade_snapshot_pairs:
+  - primary_volume_id: 1001
+    secondary_volume_id: 10
+
+  - primary_volume_id: 1002
+    secondary_volume_id: 11
+
+  - primary_volume_id: 1003
+    secondary_volume_id: 12
+
+  - primary_volume_id: 1004
+    secondary_volume_id: 13
+
+  - primary_volume_id: 1005
+    secondary_volume_id: 14
+   
+###############################################################################
+# CyberSense Details
+###############################################################################
+
+cybersense_ip: 172.23.93.162
+cybersense_username: admin
+cybersense_password: Hitachi1234!
+cybersense_policy_name: Test-2

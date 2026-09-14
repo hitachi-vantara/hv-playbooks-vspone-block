@@ -1,0 +1,186 @@
+###############################################################################
+# Playbook : 01_precheck.yml
+#
+# Purpose:
+# Validate Linux, IRIS, Storage, Snapshot Configuration and CyberSense
+# before Snapshot operations.
+#
+# Output:
+# No task-level information is intentionally displayed.
+# Only the final precheck summary is displayed.
+#
+###############################################################################
+
+- name: Environment Precheck
+  hosts: primary
+  become: yes
+  gather_facts: false
+
+  vars_files:
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+    - var.yml
+
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+  tasks:
+
+###############################################################################
+# Verify Required Linux Commands
+###############################################################################
+
+    - name: Verify Required Linux Commands
+      ansible.builtin.shell: |
+        for cmd in iris multipath vgchange lvs vgs pvs mount xfs_freeze
+        do
+          command -v "$cmd" >/dev/null 2>&1 || exit 1
+        done
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Verify Storage REST Connectivity
+###############################################################################
+
+    - name: Verify Storage REST Connectivity
+      hitachivantara.vspone_block.vsp.hv_snapshot_facts:
+        connection_info: "{{ connection_info }}"
+      register: storage_info
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Verify IRIS Instance
+###############################################################################
+
+    - name: Verify IRIS Environment
+      ansible.builtin.shell: |
+        iris list | grep -F "{{ iris_instance }}" >/dev/null 2>&1
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Validate Mount Points and Logical Volumes
+###############################################################################
+
+    - name: Validate Mount Points and Logical Volumes
+      ansible.builtin.shell: |
+        # Verify Mount Points
+        for dir in "{{ db_mount }}" "{{ jnl_mount }}" "{{ sys_mount }}"
+        do
+          [ -d "$dir" ] || exit 1
+        done
+
+        # Verify Logical Volumes
+        for lv in \
+          "/dev/mapper/{{ db_vg }}-{{ db_lv_name }}" \
+          "/dev/mapper/{{ jnl_vg }}-{{ jnl_lv_name }}" \
+          "/dev/mapper/{{ sys_vg }}-{{ sys_lv_name }}"
+        do
+          [ -b "$lv" ] || exit 1
+        done
+
+        # Verify Mounted Filesystems
+        mountpoint -q "{{ db_mount }}" || exit 1
+        mountpoint -q "{{ jnl_mount }}" || exit 1
+        mountpoint -q "{{ sys_mount }}" || exit 1
+
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Validate Snapshot Configuration
+###############################################################################
+
+    - name: Validate Snapshot Configuration
+      ansible.builtin.assert:
+        that:
+
+          #-------------------------------------------------------------------
+          # Floating Snapshot Mapping
+          #-------------------------------------------------------------------
+
+          - floating_snapshot_mapping is defined
+          - floating_snapshot_mapping | length > 0
+
+          - >
+            floating_snapshot_mapping
+            | selectattr('primary_volume_id', 'undefined')
+            | list
+            | length == 0
+
+          - >
+            floating_snapshot_mapping
+            | selectattr('secondary_volume_id', 'undefined')
+            | list
+            | length == 0
+
+          #-------------------------------------------------------------------
+          # Snap-on-Snap Configuration
+          #-------------------------------------------------------------------
+
+          - cascade_snapshot_group is defined
+          - cascade_pool_id is defined
+          - cascade_snapshot_pairs is defined
+          - cascade_snapshot_pairs | length > 0
+
+          - >
+            cascade_snapshot_pairs
+            | selectattr('primary_volume_id', 'undefined')
+            | list
+            | length == 0
+
+          - >
+            cascade_snapshot_pairs
+            | selectattr('secondary_volume_id', 'undefined')
+            | list
+            | length == 0
+
+        fail_msg: "Invalid snapshot configuration in var.yml"
+
+      no_log: true
+
+###############################################################################
+# Verify CyberSense REST API Connectivity
+###############################################################################
+
+    - name: Verify CyberSense REST API Connectivity
+      ansible.builtin.uri:
+        url: "https://{{ cybersense_ip }}/ierest/v1/policies"
+        method: GET
+        validate_certs: false
+        status_code:
+          - 200
+          - 401
+        return_content: false
+      register: cybersense_info
+      changed_when: false
+      no_log: true
+
+###############################################################################
+# Final Summary
+###############################################################################
+
+    - name: Display Environment Precheck Summary
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "╔════════════════════════════════════════════════════════════╗"
+          - "║                 ENVIRONMENT PRECHECK                      ║"
+          - "╠════════════════════════════════════════════════════════════╣"
+          - "║                                                            ║"
+          - "║  Linux Commands             :  ✓ PASSED                   ║"
+          - "║  IRIS Environment           :  ✓ PASSED                   ║"
+          - "║  Storage REST Connectivity  :  ✓ PASSED                   ║"
+          - "║  Filesystem & LVM           :  ✓ PASSED                   ║"
+          - "║  Snapshot Configuration     :  ✓ PASSED                   ║"
+          - "║  CyberSense REST API        :  ✓ PASSED                   ║"
+          - "║                                                            ║"
+          - "║  STATUS                     :  ✓ READY                    ║"
+          - "║                                                            ║"
+          - "╚════════════════════════════════════════════════════════════╝"
+          - ""

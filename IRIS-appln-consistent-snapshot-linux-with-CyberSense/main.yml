@@ -1,0 +1,162 @@
+---
+###############################################################################
+# IRIS + CYBERSENSE APPLICATION CONSISTENCY WORKFLOW
+###############################################################################
+
+- name: "WORKFLOW START"
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  tasks:
+
+    - name: Display Workflow Banner
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "╔══════════════════════════════════════════════════════════════════════╗"
+          - "║                                                                      ║"
+          - "║       IRIS + CYBERSENSE APPLICATION CONSISTENCY WORKFLOW            ║"
+          - "║                                                                      ║"
+          - "║       Hitachi VSP One Block                                         ║"
+          - "║                                                                      ║"
+          - "╚══════════════════════════════════════════════════════════════════════╝"
+          - ""
+          - "  WORKFLOW OVERVIEW"
+          - "  ──────────────────────────────────────────────────────────────────"
+          - ""
+          - "   PREPARE"
+          - "      │"
+          - "      └── 01  Environment Precheck"
+          - ""
+          - "   PROTECT"
+          - "      │"
+          - "      ├── 02  Application Freeze"
+          - "      ├── 03  CyberSense Policy Trigger"
+          - "      ├── 04  Snapshot Status Check"
+          - "      ├── 05  Application Unfreeze"
+          - "      └── 06  CyberSense Job Completion"
+          - ""
+          - "   VALIDATE"
+          - "      │"
+          - "      ├── 07  Temporary SVOL Mapping"
+          - "      ├── 08  Snap-on-Snap Creation"
+          - "      └── 09  Map Snapshots & Activate VGs"
+          - ""
+          - "   VERIFY"
+          - "      │"
+          - "      └── 10  Start IRIS & Validate Integrity"
+          - ""
+          - "   CLEANUP"
+          - "      │"
+          - "      └── 11  Cleanup"
+          - ""
+          - "  ──────────────────────────────────────────────────────────────────"
+          - ""
+          - "  IMPORTANT"
+          - ""
+          - "  • IRIS will be temporarily frozen during snapshot creation."
+          - "  • Ensure all required hosts and storage resources are available."
+          - "  • Press ENTER to begin the workflow."
+          - "  • Press Ctrl+C to abort."
+          - ""
+          - "  ──────────────────────────────────────────────────────────────────"
+
+    - name: Wait for User Confirmation
+      ansible.builtin.pause:
+        prompt: "  ▶ Press ENTER to start"
+
+    - name: Display Workflow Started
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "╔══════════════════════════════════════════════════════════════════════╗"
+          - "║                         WORKFLOW STARTED                             ║"
+          - "╚══════════════════════════════════════════════════════════════════════╝"
+          - ""
+          - "  ▶ Beginning environment precheck..."
+          - ""
+
+
+###############################################################################
+# 01 | PREPARE
+###############################################################################
+
+- name: "01 - Environment Precheck"
+  import_playbook: precheck.yml
+
+
+###############################################################################
+# 02-06 | PROTECT
+###############################################################################
+
+- name: "02 - Application Consistent Snapshot"
+  import_playbook: app-consistent-snapshot.yml
+
+
+###############################################################################
+# 07-08 | VALIDATE
+###############################################################################
+
+- name: "03 - Snap-on-Snap Creation"
+  import_playbook: snap-on-snap.yml
+
+
+###############################################################################
+# 09 | VALIDATE
+###############################################################################
+
+- name: "04 - Map Snapshots to Validation Server & Activate VGs"
+  import_playbook: mount_snapshot.yml
+
+
+###############################################################################
+# 10 | VERIFY
+###############################################################################
+
+- name: "05 - Start IRIS Instance & Validate Integrity"
+  import_playbook: integrity_check.yml
+
+
+###############################################################################
+# 11 | CLEANUP
+###############################################################################
+
+- name: "06 - Perform Cleanup"
+  import_playbook: cleanup.yml
+
+
+###############################################################################
+# WORKFLOW COMPLETION
+###############################################################################
+
+- name: "WORKFLOW COMPLETE"
+  hosts: localhost
+  gather_facts: false
+  connection: local
+
+  tasks:
+
+    - name: Display Workflow Completion
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "╔══════════════════════════════════════════════════════════════════════╗"
+          - "║                                                                      ║"
+          - "║                 ✓ WORKFLOW COMPLETED SUCCESSFULLY                   ║"
+          - "║                                                                      ║"
+          - "╚══════════════════════════════════════════════════════════════════════╝"
+          - ""
+          - "  IRIS + CyberSense application-consistent workflow completed."
+          - ""
+          - "  ✓ Environment verified"
+          - "  ✓ Application-consistent snapshot created"
+          - "  ✓ Snap-on-Snap volumes created"
+          - "  ✓ Validation volumes mapped"
+          - "  ✓ IRIS integrity validation completed"
+          - "  ✓ Cleanup Completed"
+          - ""
+          - "  ──────────────────────────────────────────────────────────────────"
+          - "                         END OF WORKFLOW"
+          - "  ──────────────────────────────────────────────────────────────────"
+          - ""

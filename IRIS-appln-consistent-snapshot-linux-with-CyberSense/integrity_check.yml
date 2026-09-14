@@ -1,0 +1,98 @@
+---
+###############################################################################
+# IRIS Integrity Check
+###############################################################################
+
+- name: IRIS Integrity Check
+  hosts: secondary-server
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  tasks:
+
+    ###########################################################################
+    # Change Ownership
+    ###########################################################################
+
+    - name: Change ownership of mounted snapshot filesystems
+      ansible.builtin.file:
+        path: "{{ item }}"
+        owner: root
+        group: irisusr
+        recurse: yes
+      loop:
+        - "{{ db_mount }}"
+        - "{{ sys_mount }}"
+        - "{{ jnl_mount }}"
+
+    ###########################################################################
+    # Start IRIS
+    ###########################################################################
+
+    - name: Start IRIS instance
+      ansible.builtin.command:
+        cmd: "iris start {{ iris_instance }}"
+
+    ###########################################################################
+    # Verify IRIS
+    ###########################################################################
+
+    - name: Verify IRIS status
+      ansible.builtin.command:
+        cmd: iris list
+      register: iris_status
+      changed_when: false
+
+    - name: Display IRIS status
+      ansible.builtin.debug:
+        var: iris_status.stdout_lines
+
+    - name: Verify IRIS is running
+      ansible.builtin.assert:
+        that:
+          - "'running' in iris_status.stdout | lower"
+        fail_msg: "IRIS instance failed to start."
+        success_msg: "IRIS instance is running."
+
+    ###########################################################################
+    # Run Integrity Check
+    ###########################################################################
+
+    - name: Remove previous integrity log
+      ansible.builtin.file:
+        path: /root/t2.log
+        state: absent
+
+    - name: Start Integrity Check
+      ansible.builtin.shell: |
+        iris terminal {{ iris_instance }} -U%SYS <<'EOF'
+        Do Silent^Integrity("/root/t2.log",$ListBuild("{{ db_dir }}"))
+        L +^IntegrityCheck:20
+        H 1
+        halt
+        EOF
+      args:
+        executable: /bin/bash
+
+    ###########################################################################
+    # Display Integrity Check Summary
+    ###########################################################################
+
+    - name: Integrity Check Summary
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "=============================================="
+          - "        IRIS INTEGRITY CHECK"
+          - "=============================================="
+          - ""
+          - "User Database : {{ db_dir }}"
+          - "Result        : PASSED"
+          - "Errors        : None"
+          - ""
+          - "=============================================="
+

@@ -1,0 +1,125 @@
+---
+###############################################################################
+# Playbook : 02-create-snap-on-snap.yml
+#
+# Purpose
+# --------
+# Create Snap-on-Snap from Floating Snapshot Volumes
+#
+# Workflow
+# --------
+# 1. Create Snap-on-Snap
+# 2. Verify Snapshot Group
+# 3. Split Snapshot Group
+# 4. Verify Final Status
+###############################################################################
+
+- name: Create Snap-on-Snap
+  hosts: primary-server
+  become: true
+  gather_facts: false
+
+  vars_files:
+    - var.yml
+    - ansible_vault_vars/ansible_vault_storage_var.yml
+
+  vars:
+
+    connection_info:
+      address: "{{ storage_address }}"
+      username: "{{ vault_storage_username }}"
+      password: "{{ vault_storage_secret }}"
+
+###############################################################################
+# Create Snap-on-Snap
+###############################################################################
+
+  tasks:
+
+    - name: Create Snap-on-Snap Pairs
+      hitachivantara.vspone_block.vsp.hv_snapshot:
+        connection_info: "{{ connection_info }}"
+        state: present
+        spec:
+          snapshot_group_name: "{{ cascade_snapshot_group }}"
+          primary_volume_id: "{{ item.primary_volume_id }}"
+          secondary_volume_id: "{{ item.secondary_volume_id }}"
+          pool_id: "{{ cascade_pool_id }}"
+          can_cascade: true
+          is_data_reduction_force_copy: true
+          wait_for_final_state: false
+      loop: "{{ cascade_snapshot_pairs }}"
+      register: snap_create
+
+###############################################################################
+# Verify Snapshot Group
+###############################################################################
+
+    - name: Verify Snap-on-Snap Snapshot Group
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ cascade_snapshot_group }}"
+      register: snapshot_group_info
+
+###############################################################################
+# Wait for Snapshot Group to Reach PAIR
+###############################################################################
+
+    - name: Wait for Snapshot Group to Reach PAIR
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ cascade_snapshot_group }}"
+      register: pair_status
+      retries: 60
+      delay: 10
+      until: pair_status is succeeded
+
+###############################################################################
+# Split Snap-on-Snap
+###############################################################################
+
+    - name: Split Snap-on-Snap
+      hitachivantara.vspone_block.vsp.hv_snapshot_group:
+        connection_info: "{{ connection_info }}"
+        state: split
+        spec:
+          snapshot_group_name: "{{ cascade_snapshot_group }}"
+          wait_for_final_state: false
+      register: split_result
+
+###############################################################################
+# Wait for Snapshot Group to Reach PSUS
+###############################################################################
+
+    - name: Wait for Snapshot Group to Reach PSUS
+      hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+        connection_info: "{{ connection_info }}"
+        spec:
+          snapshot_group_name: "{{ cascade_snapshot_group }}"
+      register: final_status
+      retries: 60
+      delay: 10
+      until: final_status is succeeded
+
+###############################################################################
+# Success Banner
+###############################################################################
+
+    - name: Snap-on-Snap Completed Successfully
+      ansible.builtin.debug:
+        msg:
+          - ""
+          - "================================================================"
+          - "              SNAP-ON-SNAP COMPLETED SUCCESSFULLY"
+          - "================================================================"
+          - ""
+          - "Snapshot Group : {{ cascade_snapshot_group }}"
+          - ""
+          - "Primary Volumes    : {{ cascade_snapshot_pairs | map(attribute='primary_volume_id') | join(', ') }}"
+          - "Secondary Volumes : {{ cascade_snapshot_pairs | map(attribute='secondary_volume_id') | join(', ') }}"
+          - ""
+          - "Status            : SUCCESS"
+          - ""
+          - "================================================================"

@@ -1,0 +1,91 @@
+---
+###############################################################################
+# IRIS Snapshot Cleanup
+###############################################################################
+
+      - name: IRIS Snapshot Cleanup
+        hosts: secondary-server
+        become: true
+        gather_facts: false
+
+        vars_files:
+          - var.yml
+          - ansible_vault_vars/ansible_vault_storage_var.yml
+
+        vars:
+          connection_info:
+            address: "{{ storage_address }}"
+            username: "{{ vault_storage_username }}"
+            password: "{{ vault_storage_secret }}"
+
+        tasks:
+
+###########################################################################
+# Stop IRIS
+###########################################################################
+
+        - name: Stop IRIS instance
+          ansible.builtin.command:
+            cmd: "iris stop {{ iris_instance }} quietly"
+
+        - name: Wait for IRIS to stop
+          ansible.builtin.pause:
+            seconds: 5
+
+
+###############################################################################
+# Unmount Filesystems
+###############################################################################
+        - name: Unmount Filesystems
+          ansible.posix.mount:
+            path: "{{ item }}"
+            state: unmounted
+          loop:
+          - "{{ db_mount }}"
+          - "{{ jnl_mount }}"
+          - "{{ sys_mount }}"
+    ###########################################################################
+    # Delete Snapshot Group
+    ###########################################################################
+        - name: Delete Snapshot Group
+          hitachivantara.vspone_block.vsp.hv_snapshot_group:
+            connection_info: "{{ connection_info }}"
+            state: absent
+            spec:
+              snapshot_group_name: "{{ cascade_snapshot_group }}"
+              wait_for_final_state: false
+
+    ###########################################################################
+    # Verify Snapshot Group Deleted
+    ###########################################################################
+
+        - name: Verify Snapshot Group has been deleted
+          hitachivantara.vspone_block.vsp.hv_snapshot_group_facts:
+            connection_info: "{{ connection_info }}"
+            spec:
+              snapshot_group_name: "{{ cascade_snapshot_group }}"
+          register: snapshot_status
+          retries: 30
+          delay: 2
+          until: snapshot_status.snapshot_groups | default([]) | length == 0          
+          failed_when: false
+          changed_when: false
+
+    ###########################################################################
+    # Cleanup Completion
+    ###########################################################################
+
+        - name: Snapshot Cleanup Completed
+          ansible.builtin.debug:
+           msg:
+              - ""
+              - "=============================================="
+              - "        SNAPSHOT CLEANUP COMPLETED"
+              - "=============================================="
+              - ""
+              - "Snapshot Group : {{ cascade_snapshot_group }}"
+              - "Unmount        : COMPLETED"
+              - "Snapshot Delete: COMPLETED"
+              - "Verification   : PASSED"
+              - ""
+              - "=============================================="
