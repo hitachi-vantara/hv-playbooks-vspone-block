@@ -94,7 +94,7 @@ This playbook automates the end-to-end creation and validation of application-co
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/IRIS-appln-consistent-snapshot-linux/Readme.md) for more info.
 
-## Playbook: [IRIS-appln-consistent-snapshot-linux-with-Cybersense](IRIS-appln-consistent-snapshot-linux-with-Cybersense)
+## Playbook: [IRIS-appln-consistent-snapshot-linux-with-CyberSense](IRIS-appln-consistent-snapshot-linux-with-CyberSense)
 This playbook automates the end-to-end creation and validation of application-consistent Thin Image Advanced (TIA) snapshots for an InterSystems IRIS database with CyberSense running on Red Hat Enterprise Linux (RHEL). The solution validates the environment, freezes the IRIS database to ensure application consistency, creates a TIA snapshot, and initiates a CyberSense scan to verify that the recovery copy is clean and free from malware. The validated recovery copy is then mounted on a secondary server, where database integrity and recoverability are validated, providing a consistent, repeatable, and reliable data protection workflow.
 
 See [Readme.md](https://github.com/hitachi-vantara/hv-playbooks-vspone-block/blob/main/IRIS-appln-consistent-snapshot-linux-with-CyberSense/Readme.md) for more info.
