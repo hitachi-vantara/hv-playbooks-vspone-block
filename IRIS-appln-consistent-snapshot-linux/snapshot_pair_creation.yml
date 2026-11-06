@@ -85,6 +85,11 @@
 
           wait_for_final_state: false
 
+      loop: "{{ snapshot_pairs[:1] }}"
+
+      loop_control:
+        label: "PVOL={{ pair.pvol }}"
+
 ###############################################################################
 # Create Remaining Snapshot Pairs
 ###############################################################################
