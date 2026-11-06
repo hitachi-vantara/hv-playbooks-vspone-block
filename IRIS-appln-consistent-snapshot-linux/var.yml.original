@@ -1,0 +1,35 @@
+---
+#==============================
+# IRIS
+#==============================
+iris_instance: iris
+iris_namespace: Epic_DB
+db_dir: "/userDB/Epic_DB"
+
+#==============================
+# Mount Points
+#==============================
+db_mount: /userDB
+jnl_mount: /JNL
+sys_mount: /IRIS
+
+#==============================
+# Logical Volumes
+#==============================
+db_lv: /dev/mapper/Iris_vg_DB-Iris_DB
+jnl_lv: /dev/mapper/Iris_vg_JNL-Iris_JNL
+sys_lv: /dev/mapper/Iris_vg_SYS-Iris_SYS
+
+###############################################################################
+# Snapshot Configuration
+###############################################################################
+
+snapshot_group: GRP-0
+snapshot_pool_id: 0
+pool_id: 0
+mirror_unit: 0
+primary_ldev_start: 10
+primary_ldev_end: 14
+
+secondary_ldev_start: 15
+secondary_ldev_end: 19

@@ -2,7 +2,7 @@
 #==============================
 # IRIS
 #==============================
-iris_instance: iris
+iris_instance: IRIS
 iris_namespace: Epic_DB
 db_dir: "/userDB/Epic_DB"
 
@@ -28,8 +28,8 @@ snapshot_group: GRP-0
 snapshot_pool_id: 0
 pool_id: 0
 mirror_unit: 0
-primary_ldev_start: 10
-primary_ldev_end: 14
+primary_ldev_start: 600
+primary_ldev_end: 605
 
-secondary_ldev_start: 15
-secondary_ldev_end: 19
+secondary_ldev_start: 606
+secondary_ldev_end: 611
