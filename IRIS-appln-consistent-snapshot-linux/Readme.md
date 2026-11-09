@@ -30,13 +30,16 @@ Precheck
 Create TIA Snapshot Pairs
     │
     ▼
-Freeze IRIS + Freeze XFS
+Freeze IRIS 
+    │
+    ▼
+Flush data to disk (sync) 
     │
     ▼
 Split TIA Snapshot Pairs
     │
     ▼
-Unfreeze XFS + Thaw IRIS
+ Thaw IRIS
     │
     ▼
 Mount Snapshot on Secondary Server
@@ -58,7 +61,8 @@ IRIS_appln_consistency_playbook/
 ├── snapshot_pair_creation.yml   # Create TIA pair with cascade CTG 
 ├── snapshot_create.yml          # Create application-consistent TIA snapshot
 ├── mount_snapshot.yml           # Mount snapshot volumes on secondary server
-├── integrity_check_cleanup.yml  # Start IRIS, run user database integrity check, and perform cleanup
+├── integrity_check.yml          # Start IRIS, run user database integrity check
+├── cleanup.yml                  # Perform cleanup
 ```
 
 ## Prerequisites
