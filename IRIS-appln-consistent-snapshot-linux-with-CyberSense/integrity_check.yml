@@ -58,16 +58,16 @@
         fail_msg: "IRIS instance failed to start."
         success_msg: "IRIS instance is running."
 
-    ###########################################################################
-    # Run Integrity Check
-    ###########################################################################
+###############################################################################
+# Run IRIS Database Integrity Check
+###############################################################################
 
     - name: Remove previous integrity log
       ansible.builtin.file:
         path: /root/t2.log
         state: absent
 
-    - name: Start Integrity Check
+    - name: Start IRIS Integrity Check
       ansible.builtin.shell: |
         iris terminal {{ iris_instance }} -U%SYS <<'EOF'
         Do Silent^Integrity("/root/t2.log",$ListBuild("{{ db_dir }}"))
@@ -77,22 +77,83 @@
         EOF
       args:
         executable: /bin/bash
+      register: integrity_command
+      changed_when: true
+###############################################################################
+# Validate Integrity Check Log
+###############################################################################
 
-    ###########################################################################
-    # Display Integrity Check Summary
-    ###########################################################################
+    - name: Check integrity log
+      ansible.builtin.stat:
+        path: /root/t2.log
+      register: integrity_log_stat
 
-    - name: Integrity Check Summary
+    - name: Fail if integrity log is missing
+      ansible.builtin.fail:
+        msg: "IRIS integrity check FAILED: Integrity log was not generated."
+      when: not integrity_log_stat.stat.exists
+
+    - name: Read integrity check log
+      ansible.builtin.slurp:
+        src: /root/t2.log
+      register: integrity_log
+
+    - name: Validate database integrity result
+      ansible.builtin.set_fact:
+        integrity_log_text: "{{ integrity_log.content | b64decode }}"
+        integrity_check_passed: >-
+          {{
+            (
+              'Directory: ' ~ (db_dir | regex_replace('/?$', '/'))
+              in (integrity_log.content | b64decode)
+            )
+            and
+            (
+              'No errors found'
+              in (integrity_log.content | b64decode)
+            )
+            and
+            (
+              'Integrity Check Run Time'
+              in (integrity_log.content | b64decode)
+            )
+          }}
+
+###############################################################################
+# Display Integrity Check Summary
+###############################################################################
+
+    - name: Display Integrity Check Summary
       ansible.builtin.debug:
         msg:
-          - ""
-          - "=============================================="
-          - "        IRIS INTEGRITY CHECK"
-          - "=============================================="
-          - ""
+          - "======================================="
+          - "       IRIS INTEGRITY CHECK SUMMARY"
+          - "======================================="
           - "User Database : {{ db_dir }}"
-          - "Result        : PASSED"
-          - "Errors        : None"
-          - ""
-          - "=============================================="
+          - "Result        : {{ 'PASSED' if integrity_check_passed | bool else 'FAILED' }}"
+          - "{{ 'No errors found.' if integrity_check_passed | bool else 'Integrity check failed or could not be validated. Review /root/t2.log.' }}"
+          - "======================================="
 
+###############################################################################
+# Stop Workflow on Integrity Check Failure
+###############################################################################
+
+    - name: Stop if integrity check failed
+      ansible.builtin.fail:
+        msg: >-
+          IRIS integrity check FAILED for {{ db_dir }}.
+          Review /root/t2.log before proceeding with recovery validation.
+      when: not (integrity_check_passed | bool)
+
+###############################################################################
+# Workflow Completion
+###############################################################################
+
+    - name: Workflow Completed
+      debug:
+        msg:
+          - "======================================="
+          - "IRIS APPLICATION CONSISTENCY VALIDATION"
+          - "Workflow Status : SUCCESS"
+          - "Integrity Check : PASSED"
+          - "======================================="
