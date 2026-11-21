@@ -24,21 +24,17 @@
 
 # 3. Verify WDSUSPD = 1
 
-# 4. Freeze XFS
+# 4. Execute CyberSense Policy
 
-# 5. Execute CyberSense Policy
+# 5. Wait for CyberSense Job
 
-# 6. Wait for CyberSense Job
+# 6. Discover newly created Snapshot Group
 
-# 7. Discover newly created Snapshot Group
+# 7. Thaw IRIS
 
-# 8. Unfreeze XFS
+# 8. Verify WDSUSPD = 0
 
-# 9. Thaw IRIS
-
-# 10. Verify WDSUSPD = 0
-
-# 11. Map Floating Snapshots
+# 9. Map Floating Snapshots
 
 #
 
@@ -146,14 +142,6 @@
               - iris_freeze_status.stdout | int == 1
             fail_msg: "IRIS Freeze failed. WDSUSPD did not reach 1."
             success_msg: "IRIS Freeze successful. WDSUSPD=1."
-
-###############################################################################
-# Freeze XFS
-###############################################################################
-
-        - name: Freeze XFS Filesystem
-          ansible.builtin.command:
-            cmd: "xfs_freeze -f {{ db_mount }}"
 
 ###############################################################################
 # Flush Filesystem Buffers
@@ -387,15 +375,6 @@
               CyberSense assigned Mirror Unit Number:
               {{ cybersense_mirror_unit_number }}
 ###############################################################################
-# Unfreeze XFS
-###############################################################################
-
-        - name: Unfreeze XFS Filesystem
-          ansible.builtin.command:
-            cmd: "xfs_freeze -u {{ db_mount }}"
-          ignore_errors: true
-
-###############################################################################
 # Thaw IRIS
 ###############################################################################
 
@@ -581,9 +560,6 @@
               - "Snapshot Group        : {{ snapshot_group }}"
               - "CyberSense Job ID     : {{ job_id }}"
               - "CyberSense Job State  : {{ final_job_state }}"
-              - "IRIS Freeze           : PASS"
-              - "Snapshot Verification : PASS"
-              - "IRIS Thaw             : PASS"
               - ""
               - "============================================================"
 ###############################################################################
@@ -700,8 +676,6 @@
           - "============================================================"
           - ""
           - "Snapshot Group            : {{ snapshot_group }}"
-          - "Floating Snapshot Mapping : COMPLETED"
-          - "Snapshot Verification     : PASSED"
           - ""
           - "============================================================"
 
@@ -721,11 +695,6 @@
           - "CyberSense Job ID         : {{ job_id }}"
           - "CyberSense Job State      : {{ final_job_state }}"
           - ""
-          - "IRIS Freeze               : PASS"
-          - "Snapshot Verification     : PASS"
-          - "IRIS Thaw                 : PASS"
-          - ""
-          - "Floating Snapshot Mapping : PASSED"
           - ""
           - "============================================================"
           - "       APPLICATION CONSISTENT SNAPSHOT READY"
